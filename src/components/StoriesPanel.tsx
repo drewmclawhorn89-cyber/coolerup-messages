@@ -9,6 +9,7 @@ interface StoriesPanelProps {
   stories: Story[];
   profilesByUid: Record<string, PublicProfile>;
   onOpenCameraForStory: () => void;
+  onOpenCameraForVideo?: () => void;
   onViewAuthorStories: (authorId: string) => void;
   onDeleteStory: (storyId: string) => Promise<void>;
 }
@@ -18,6 +19,7 @@ export function StoriesPanel({
   stories,
   profilesByUid,
   onOpenCameraForStory,
+  onOpenCameraForVideo,
   onViewAuthorStories,
   onDeleteStory,
 }: StoriesPanelProps) {
@@ -79,7 +81,7 @@ export function StoriesPanel({
         </div>
         <button
           type="button"
-          onClick={onOpenCameraForStory}
+          onClick={onOpenCameraForVideo || onOpenCameraForStory}
           className="h-9 px-3.5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
         >
           <Camera className="w-3.5 h-3.5" />
@@ -98,7 +100,7 @@ export function StoriesPanel({
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Record a short video Snap and share it to your 24-hour Story.</p>
               <button
                 type="button"
-                onClick={onOpenCameraForStory}
+                onClick={onOpenCameraForVideo || onOpenCameraForStory}
                 className="mt-4 h-9 px-4 rounded-xl bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -108,21 +110,15 @@ export function StoriesPanel({
           ) : (
             videoPosts.map((post) => (
               <article key={post.id} className="overflow-hidden rounded-2xl bg-slate-950 text-white border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => onViewAuthorStories(post.authorId)}
-                  className="w-full aspect-[9/12] max-h-[560px] bg-black flex items-center justify-center cursor-pointer"
-                  aria-label={`Watch ${post.authorName}'s video`}
-                >
+                <div className="w-full aspect-[9/12] max-h-[560px] bg-black flex items-center justify-center">
                   <video
                     src={post.imageData}
-                    muted
                     playsInline
                     controls
                     preload="metadata"
                     className="w-full h-full object-contain"
                   />
-                </button>
+                </div>
                 <div className="p-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <button

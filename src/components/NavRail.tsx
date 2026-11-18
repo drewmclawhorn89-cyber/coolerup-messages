@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Archive, Camera, CircleDot, Clapperboard, MessageCircle, Moon, Sun, Users } from 'lucide-react';
-import type { NavTab, PublicProfile } from '../types/messenger';
+import type { NavTab, PublicProfile, SpotlightVideo, Story } from '../types/messenger';
 import { Avatar } from './Avatar';
 import { PWAInstallButton } from './PWAInstallButton';
 import { VideoFeed } from './VideoFeed';
@@ -9,10 +9,14 @@ interface NavRailProps {
   activeTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   onOpenCamera: () => void;
+  onPostVideo?: () => void;
   totalUnread: number;
   unviewedStoriesCount: number;
   pendingFriendRequestsCount?: number;
   archivedCount: number;
+  stories?: Story[];
+  spotlightVideos?: SpotlightVideo[];
+  onToggleLikeSpotlight?: (video: SpotlightVideo) => Promise<void>;
   profile: PublicProfile;
   darkMode: boolean;
   onToggleTheme: () => void;
@@ -23,10 +27,14 @@ export function NavRail({
   activeTab,
   onSelectTab,
   onOpenCamera,
+  onPostVideo,
   totalUnread,
   unviewedStoriesCount,
   pendingFriendRequestsCount = 0,
   archivedCount,
+  stories,
+  spotlightVideos,
+  onToggleLikeSpotlight,
   profile,
   darkMode,
   onToggleTheme,
@@ -145,7 +153,16 @@ export function NavRail({
           <span className="text-sm font-semibold">Videos</span>
         </button>
       )}
-      {activeTab === 'video' && <VideoFeed onClose={() => onSelectTab('chats')} />}
+      {activeTab === 'video' && (
+        <VideoFeed
+          stories={stories}
+          spotlightVideos={spotlightVideos}
+          currentUserUid={profile.uid}
+          onPostVideo={onPostVideo}
+          onToggleLikeSpotlight={onToggleLikeSpotlight}
+          onClose={() => onSelectTab('chats')}
+        />
+      )}
     </>
   );
 }

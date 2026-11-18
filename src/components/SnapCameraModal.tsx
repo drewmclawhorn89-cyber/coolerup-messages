@@ -29,6 +29,7 @@ import {
   blobToBoundedDataUrl,
   compressCanvasToDataUrl,
   LIMITS,
+  pickSupportedVideoMimeType,
   prepare720pVideoDataUrl,
   unlockVideoTranscodeAudio,
 } from '../lib/validation';
@@ -73,6 +74,7 @@ interface SnapCameraModalProps {
   profiles: PublicProfile[];
   preselectedConversationId?: string | null;
   initialMode?: 'snap' | 'story' | 'spotlight';
+  initialCaptureKind?: 'photo' | 'video';
   onClose: () => void;
   onSendSnapToConversations: (params: {
     conversationIds: string[];
@@ -94,6 +96,7 @@ export function SnapCameraModal({
   profiles,
   preselectedConversationId = null,
   initialMode = 'snap',
+  initialCaptureKind,
   onClose,
   onSendSnapToConversations,
 }: SnapCameraModalProps) {
@@ -113,7 +116,7 @@ export function SnapCameraModal({
   const [countdownLeft, setCountdownLeft] = useState<number | null>(null);
 
   const [captureKind, setCaptureKind] = useState<'photo' | 'video'>(
-    initialMode === 'spotlight' ? 'video' : 'photo'
+    initialCaptureKind ?? (initialMode === 'spotlight' ? 'video' : 'photo')
   );
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSec, setRecordingSec] = useState(0);
@@ -384,15 +387,11 @@ export function SnapCameraModal({
     }
 
     const chunks: Blob[] = [];
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-      ? 'video/webm;codecs=vp8,opus'
-      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-      ? 'video/webm;codecs=vp9,opus'
-      : 'video/webm';
+    const mimeType = pickSupportedVideoMimeType();
 
     const recorder = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: 1_500_000,
+      ...(mimeType ? { mimeType } : {}),
+      videoBitsPerSecond: 1_400_000,
       audioBitsPerSecond: 128_000,
     });
 
@@ -402,7 +401,12 @@ export function SnapCameraModal({
 
     recorder.onstop = async () => {
       setIsRecording(false);
-      const blob = new Blob(chunks, { type: mimeType });
+      setSendError('');
+      const blob = new Blob(chunks, { type: mimeType || recorder.mimeType || 'video/webm' });
+      if (blob.size < 256) {
+        setCameraError('Recorded video was empty. Please try again.');
+        return;
+      }
       try {
         const dataUrl = await blobToBoundedDataUrl(
           blob,
@@ -671,6 +675,7 @@ export function SnapCameraModal({
                 setSelectedSoundTrackId('original');
                 setShowSoundPicker(false);
                 setPreviewMuted(false);
+                setSendError('');
               } else {
                 onClose();
               }
@@ -1147,82 +1152,93 @@ export function SnapCameraModal({
             </div>
           </div>
         ) : !showSendPicker ? (
-          <div className="px-4 py-4 bg-black/90 border-t border-slate-800 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              disabled={sending}
-              onClick={async () => {
-                setPostToStory(true);
-                setSending(true);
-                try {
-                  const dataUrl = await flattenSnapToDataUrl();
-                  await onSendSnapToConversations({
-                    conversationIds: [],
-                    directPeerProfiles: [],
-                    imageData: dataUrl,
-                    mediaType: capturedMedia.mediaType,
-                    caption: caption.trim(),
-                    durationSec: durationSec === 0 ? 5 : durationSec,
-                    postToStory: true,
-                  });
-                  onClose();
-                } catch (err) {
-                  setSendError(err instanceof Error ? err.message : 'Unable to post story.');
-                } finally {
-                  setSending(false);
-                }
-              }}
-              className="h-11 px-3.5 rounded-xl bg-white/12 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>+ My Story</span>
-            </button>
-
-            {capturedMedia.mediaType === 'video' && (
+          <div className="bg-black/90 border-t border-slate-800">
+            {sendError && (
+              <p className="px-4 pt-3 text-xs font-medium text-rose-400">{sendError}</p>
+            )}
+            <div className="px-4 py-4 flex items-center justify-between gap-2">
               <button
                 type="button"
                 disabled={sending}
                 onClick={async () => {
-                  setPostToSpotlight(true);
+                  setPostToStory(true);
                   setSending(true);
+                  setSendError('');
                   try {
                     const dataUrl = await flattenSnapToDataUrl();
                     await onSendSnapToConversations({
                       conversationIds: [],
                       directPeerProfiles: [],
                       imageData: dataUrl,
-                      mediaType: 'video',
+                      mediaType: capturedMedia.mediaType,
                       caption: caption.trim(),
                       durationSec: durationSec === 0 ? 5 : durationSec,
-                      postToStory: false,
-                      postToSpotlight: true,
-                      soundTrackId: selectedSoundTrackId,
-                      soundTitle:
-                        selectedSoundTrackId === 'original'
-                          ? `Original Sound · ${currentUser.displayName.split(' ')[0]}`
-                          : selectedTrackMeta.title,
+                      postToStory: true,
                     });
                     onClose();
                   } catch (err) {
-                    setSendError(err instanceof Error ? err.message : 'Unable to post to Spotlight.');
+                    setSendError(err instanceof Error ? err.message : 'Unable to post story.');
                   } finally {
                     setSending(false);
                   }
                 }}
-                className="h-11 px-3.5 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="h-11 px-3.5 rounded-xl bg-white/12 hover:bg-white/20 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                <Film className="w-3.5 h-3.5" />
-                <span>+ Spotlight</span>
+                <span>{sending && postToStory ? 'Posting...' : '+ My Story'}</span>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => setShowSendPicker(true)}
-              className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer ml-auto"
-            >
-              <span>Send To</span>
-              <Send className="w-4 h-4" />
-            </button>
+              {capturedMedia.mediaType === 'video' && (
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={async () => {
+                    setPostToSpotlight(true);
+                    setSending(true);
+                    setSendError('');
+                    try {
+                      const dataUrl = await flattenSnapToDataUrl();
+                      await onSendSnapToConversations({
+                        conversationIds: [],
+                        directPeerProfiles: [],
+                        imageData: dataUrl,
+                        mediaType: 'video',
+                        caption: caption.trim(),
+                        durationSec: durationSec === 0 ? 5 : durationSec,
+                        postToStory: false,
+                        postToSpotlight: true,
+                        soundTrackId: selectedSoundTrackId,
+                        soundTitle:
+                          selectedSoundTrackId === 'original'
+                            ? `Original Sound · ${currentUser.displayName.split(' ')[0]}`
+                            : selectedTrackMeta.title,
+                      });
+                      onClose();
+                    } catch (err) {
+                      setSendError(err instanceof Error ? err.message : 'Unable to post to Spotlight.');
+                    } finally {
+                      setSending(false);
+                    }
+                  }}
+                  className="h-11 px-3.5 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 disabled:opacity-50 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Film className="w-3.5 h-3.5" />
+                  <span>{sending && postToSpotlight ? 'Posting...' : '+ Spotlight'}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={sending}
+                onClick={() => {
+                  setSendError('');
+                  setShowSendPicker(true);
+                }}
+                className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer ml-auto"
+              >
+                <span>Send To</span>
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="absolute inset-0 z-30 bg-white dark:bg-[#121824] flex flex-col">

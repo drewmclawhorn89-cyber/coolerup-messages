@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
   collection,
-  doc,
-  getDoc,
   limit,
   onSnapshot,
   orderBy,
@@ -25,7 +23,13 @@ import { SnapViewerModal } from './components/SnapViewerModal';
 import { SpotlightFeedPanel } from './components/SpotlightFeedPanel';
 import { StoriesPanel } from './components/StoriesPanel';
 import { StoryViewerModal } from './components/StoryViewerModal';
-import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { auth, db, handleFirestoreError, isQuotaExceededError, OperationType } from './lib/firebase';
+import {
+  bootstrapLocalSavedChat,
+  cacheGet,
+  cacheSet,
+  subscribeLocalCacheKey,
+} from './lib/localFallbackStore';
 import { LIMITS, transcodeVideoFileToBoundedDataUrl } from './lib/validation';
 import {
   addMemberToGroupChat,
@@ -37,6 +41,7 @@ import {
   deleteSpotlightVideo,
   deleteStory,
   deleteUserChat,
+  getConversationById,
   incrementSpotlightView,
   leaveGroupChat,
   markSnapReplayed,
@@ -104,6 +109,8 @@ export default function App() {
   const [cameraModalConfig, setCameraModalConfig] = useState<{
     conversationId?: string | null;
     mode: 'snap' | 'story' | 'spotlight';
+    captureKind?: 'photo' | 'video';
+    returnToTab?: NavTab;
   } | null>(null);
   const [viewingSnap, setViewingSnap] = useState<{
     message: Message;
@@ -152,6 +159,10 @@ export default function App() {
         } else if (priv.themeMode === 'light') {
           setDarkMode(false);
         }
+      } catch (err) {
+        if (!isQuotaExceededError(err)) {
+          console.error('Sign-in sync error:', err);
+        }
       } finally {
         setAuthReady(true);
       }
@@ -163,99 +174,177 @@ export default function App() {
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
     const uid = currentUserProfile.uid;
+    let fallbackUnsub: (() => void) | null = null;
     const unsub = onSnapshot(
       query(collection(db, 'profiles'), where('uid', '==', uid)),
       (snap) => {
         if (!snap.empty) {
-          setCurrentUserProfile(snap.docs[0].data() as PublicProfile);
+          const data = snap.docs[0].data() as PublicProfile;
+          setCurrentUserProfile(data);
+          void cacheSet(`profile_${uid}`, data);
         }
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          fallbackUnsub = subscribeLocalCacheKey<PublicProfile>(`profile_${uid}`, (cached) => {
+            if (cached) setCurrentUserProfile(cached);
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, `profiles/${uid}`);
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [currentUserProfile?.uid]);
 
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
+    let fallbackUnsub: (() => void) | null = null;
     const unsub = onSnapshot(
-      query(collection(db, 'profiles'), where('isDiscoverable', '==', true), limit(100)),
+      query(collection(db, 'profiles'), where('isDiscoverable', '==', true), limit(40)),
       (snap) => {
-        setProfiles(snap.docs.map((d) => d.data() as PublicProfile));
+        const list = snap.docs.map((d) => d.data() as PublicProfile);
+        setProfiles(list);
+        void cacheSet('profiles', list);
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          fallbackUnsub = subscribeLocalCacheKey<PublicProfile[]>('profiles', (cached) => {
+            if (cached) setProfiles(cached);
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, 'profiles');
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [currentUserProfile?.uid]);
 
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
     const uid = currentUserProfile.uid;
     const path = `users/${uid}/chats`;
+    let fallbackUnsub: (() => void) | null = null;
 
     const unsub = onSnapshot(
       query(collection(db, 'users', uid, 'chats'), orderBy('lastMessageAt', 'desc')),
       (snap) => {
-        setChats(snap.docs.map((d) => d.data() as UserChatIndex));
+        const list = snap.docs.map((d) => d.data() as UserChatIndex);
+        setChats(list);
+        void cacheSet(`chats_${uid}`, list);
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          void cacheGet<UserChatIndex[]>(`chats_${uid}`).then(async (cached) => {
+            if ((!cached || cached.length === 0) && currentUserProfile) {
+              await bootstrapLocalSavedChat(currentUserProfile);
+            }
+            const ready = await cacheGet<UserChatIndex[]>(`chats_${uid}`);
+            if (ready) setChats(ready);
+          });
+          fallbackUnsub = subscribeLocalCacheKey<UserChatIndex[]>(`chats_${uid}`, (cached) => {
+            if (cached) setChats(cached);
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, path);
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [currentUserProfile?.uid]);
 
   // Live 24-hour Stories subscription
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
+    let fallbackUnsub: (() => void) | null = null;
     const unsub = onSnapshot(
-      query(collection(db, 'stories'), where('isPublicStory', '==', true), limit(100)),
+      query(collection(db, 'stories'), where('isPublicStory', '==', true), limit(30)),
       (snap) => {
-        setStories(snap.docs.map((d) => d.data() as Story));
+        const list = snap.docs.map((d) => d.data() as Story);
+        setStories(list);
+        void cacheSet('stories', list);
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          fallbackUnsub = subscribeLocalCacheKey<Story[]>('stories', (cached) => {
+            if (cached) setStories(cached);
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, 'stories');
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [currentUserProfile?.uid]);
 
   // Live Spotlight Video Feed subscription
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
+    let fallbackUnsub: (() => void) | null = null;
     const unsub = onSnapshot(
-      query(collection(db, 'spotlightVideos'), where('isPublic', '==', true), limit(50)),
+      query(collection(db, 'spotlightVideos'), where('isPublic', '==', true), limit(20)),
       (snap) => {
         const list = snap.docs.map((d) => d.data() as SpotlightVideo);
         list.sort(
           (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
         );
         setSpotlightVideos(list);
+        void cacheSet('spotlightVideos', list);
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          fallbackUnsub = subscribeLocalCacheKey<SpotlightVideo[]>('spotlightVideos', (cached) => {
+            if (cached) setSpotlightVideos(cached);
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, 'spotlightVideos');
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [currentUserProfile?.uid]);
 
   // Live Friendships & Friend Requests subscription
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
     const uid = currentUserProfile.uid;
+    let fallbackUnsub: (() => void) | null = null;
     const unsub = onSnapshot(
       query(collection(db, 'friendships'), where('userIds', 'array-contains', uid)),
       (snap) => {
-        setFriendships(snap.docs.map((d) => d.data() as Friendship));
+        const list = snap.docs.map((d) => d.data() as Friendship);
+        setFriendships(list);
+        void cacheSet(`friendships_${uid}`, list);
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          fallbackUnsub = subscribeLocalCacheKey<Friendship[]>(`friendships_${uid}`, (cached) => {
+            if (cached) setFriendships(cached);
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, 'friendships');
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [currentUserProfile?.uid]);
 
   useEffect(() => {
@@ -437,9 +526,8 @@ export default function App() {
 
     let lastSentConvId: string | null = null;
     for (const convId of targetConvIds) {
-      const convSnap = await getDoc(doc(db, 'conversations', convId));
-      if (!convSnap.exists()) continue;
-      const conv = convSnap.data() as Conversation;
+      const conv = await getConversationById(convId);
+      if (!conv) continue;
       await sendMessage({
         conversation: conv,
         sender: currentUserProfile,
@@ -455,6 +543,8 @@ export default function App() {
     if (lastSentConvId) {
       setActiveTab('chats');
       setActiveConversationId(lastSentConvId);
+    } else if (cameraModalConfig?.returnToTab === 'video') {
+      setActiveTab('video');
     } else if (params.postToSpotlight && params.mediaType === 'video') {
       setActiveTab('spotlight');
     } else if (params.postToStory) {
@@ -475,8 +565,8 @@ export default function App() {
       }
       if (!targetConvId) return;
 
-      const convSnap = await getDoc(doc(db, 'conversations', targetConvId));
-      if (!convSnap.exists()) return;
+      const conv = await getConversationById(targetConvId);
+      if (!conv) return;
 
       const resolvedSrc = await resolveSpotlightVideoSrc(params.video);
       const boundedSnapMedia =
@@ -485,7 +575,7 @@ export default function App() {
           : await transcodeVideoFileToBoundedDataUrl(resolvedSrc);
 
       await sendMessage({
-        conversation: convSnap.data() as Conversation,
+        conversation: conv,
         sender: currentUserProfile,
         kind: 'snap',
         mediaType: 'video',
@@ -517,10 +607,10 @@ export default function App() {
     const authorProfile = profilesByUid[authorId];
     if (!authorProfile) return;
     const convId = await createOrOpenDirectChat(currentUserProfile, authorProfile);
-    const convSnap = await getDoc(doc(db, 'conversations', convId));
-    if (convSnap.exists()) {
+    const conv = await getConversationById(convId);
+    if (conv) {
       await sendMessage({
-        conversation: convSnap.data() as Conversation,
+        conversation: conv,
         sender: currentUserProfile,
         kind: 'text',
         text: replyText,
@@ -573,10 +663,23 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onOpenCamera={() => setCameraModalConfig({ conversationId: activeConversationId, mode: 'snap' })}
+        onPostVideo={() =>
+          setCameraModalConfig({
+            conversationId: null,
+            mode: 'spotlight',
+            captureKind: 'video',
+            returnToTab: 'video',
+          })
+        }
         totalUnread={totalUnread}
         unviewedStoriesCount={unviewedStoriesCount}
         pendingFriendRequestsCount={pendingFriendRequestsCount}
         archivedCount={archivedCount}
+        stories={stories}
+        spotlightVideos={spotlightVideos}
+        onToggleLikeSpotlight={(vid) =>
+          toggleLikeSpotlightVideo(vid.id, currentUserProfile.uid, vid.likedBy)
+        }
         profile={currentUserProfile}
         darkMode={darkMode}
         onToggleTheme={handleToggleTheme}
@@ -593,7 +696,11 @@ export default function App() {
             profiles={allKnownProfiles}
             profilesByUid={profilesByUid}
             onOpenCameraForSpotlight={() =>
-              setCameraModalConfig({ conversationId: null, mode: 'spotlight' })
+              setCameraModalConfig({
+                conversationId: null,
+                mode: 'spotlight',
+                captureKind: 'video',
+              })
             }
             onUploadSpotlightVideo={async ({ videoData, caption, soundTitle, soundTrackId }) => {
               await createSpotlightVideo({
@@ -642,6 +749,13 @@ export default function App() {
                 profilesByUid={profilesByUid}
                 onOpenCameraForStory={() =>
                   setCameraModalConfig({ conversationId: null, mode: 'story' })
+                }
+                onOpenCameraForVideo={() =>
+                  setCameraModalConfig({
+                    conversationId: null,
+                    mode: 'story',
+                    captureKind: 'video',
+                  })
                 }
                 onViewAuthorStories={(authorId) => setViewingStoryAuthorId(authorId)}
                 onDeleteStory={(storyId) => deleteStory(storyId)}
@@ -925,6 +1039,7 @@ export default function App() {
           profiles={allKnownProfiles}
           preselectedConversationId={cameraModalConfig.conversationId}
           initialMode={cameraModalConfig.mode}
+          initialCaptureKind={cameraModalConfig.captureKind}
           onClose={() => setCameraModalConfig(null)}
           onSendSnapToConversations={handleSendSnapBatch}
         />

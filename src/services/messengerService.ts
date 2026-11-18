@@ -14,11 +14,37 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, isQuotaExceededError, OperationType } from '../lib/firebase';
+import {
+  appendLocalMessage,
+  bootstrapLocalSavedChat,
+  cacheGet,
+  cacheSet,
+  createLocalGroupChat,
+  createLocalSpotlightVideo,
+  createLocalStory,
+  deleteLocalSpotlightVideo,
+  deleteLocalStory,
+  deleteLocalUserChat,
+  removeLocalFriendship,
+  respondLocalFriendRequest,
+  saveLocalPrivateInfo,
+  saveLocalProfile,
+  updateLocalAppearance,
+  updateLocalConversation,
+  updateLocalMessageById,
+  updateLocalProfile,
+  updateLocalSpotlightVideo,
+  updateLocalThemePreference,
+  updateLocalUserChatIndex,
+  upsertLocalDirectChat,
+  upsertLocalFriendRequest,
+} from '../lib/localFallbackStore';
 import { clampText, LIMITS, sanitizeHandle } from '../lib/validation';
 import type {
   ChatThemeId,
   Conversation,
+  ConversationMember,
   MediaType,
   Message,
   MessageKind,
@@ -57,16 +83,22 @@ export async function syncUserOnSignIn(user: User): Promise<{
   const email = (user.email || '').slice(0, 254);
 
   let existingProfile: PublicProfile | null = null;
+  let quotaHit = false;
   try {
     const snap = await getDoc(doc(db, 'profiles', uid));
     if (snap.exists()) {
       existingProfile = snap.data() as PublicProfile;
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, profilePath);
+    if (isQuotaExceededError(error)) {
+      quotaHit = true;
+      existingProfile = await cacheGet<PublicProfile>(`profile_${uid}`);
+    } else {
+      handleFirestoreError(error, OperationType.GET, profilePath);
+    }
   }
 
-  if (!existingProfile) {
+  if (!existingProfile && !quotaHit) {
     const handleSeed = user.email ? user.email.split('@')[0] : displayName;
     const handle = sanitizeHandle(handleSeed, uid);
     try {
@@ -86,33 +118,54 @@ export async function syncUserOnSignIn(user: User): Promise<{
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, profilePath);
+      if (isQuotaExceededError(error)) {
+        quotaHit = true;
+      } else {
+        handleFirestoreError(error, OperationType.CREATE, profilePath);
+      }
     }
-  } else {
-    try {
-      await updateDoc(doc(db, 'profiles', uid), {
-        isOnline: true,
-        snapScore: existingProfile.snapScore ?? 0,
-        lastSeenAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        ...(photoURL && photoURL !== existingProfile.photoURL ? { photoURL } : {}),
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, profilePath);
+  } else if (existingProfile && !quotaHit) {
+    // Only write on sign-in when fields actually need updating, and never crash login on quota limits
+    const needsOnlineUpdate = !existingProfile.isOnline || (photoURL && photoURL !== existingProfile.photoURL);
+    if (needsOnlineUpdate) {
+      try {
+        await updateDoc(doc(db, 'profiles', uid), {
+          isOnline: true,
+          snapScore: existingProfile.snapScore ?? 0,
+          lastSeenAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          ...(photoURL && photoURL !== existingProfile.photoURL ? { photoURL } : {}),
+        });
+      } catch (error) {
+        if (isQuotaExceededError(error)) {
+          quotaHit = true;
+        } else {
+          handleFirestoreError(error, OperationType.UPDATE, profilePath);
+        }
+      }
     }
   }
 
   let existingPrivate: PrivateUserInfo | null = null;
-  try {
-    const privSnap = await getDoc(doc(db, 'users', uid, 'private', 'info'));
-    if (privSnap.exists()) {
-      existingPrivate = privSnap.data() as PrivateUserInfo;
+  if (!quotaHit) {
+    try {
+      const privSnap = await getDoc(doc(db, 'users', uid, 'private', 'info'));
+      if (privSnap.exists()) {
+        existingPrivate = privSnap.data() as PrivateUserInfo;
+      }
+    } catch (error) {
+      if (isQuotaExceededError(error)) {
+        quotaHit = true;
+        existingPrivate = await cacheGet<PrivateUserInfo>(`private_${uid}`);
+      } else {
+        handleFirestoreError(error, OperationType.GET, privatePath);
+      }
     }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, privatePath);
+  } else {
+    existingPrivate = await cacheGet<PrivateUserInfo>(`private_${uid}`);
   }
 
-  if (!existingPrivate) {
+  if (!existingPrivate && !quotaHit) {
     try {
       await setDoc(doc(db, 'users', uid, 'private', 'info'), {
         uid,
@@ -122,38 +175,83 @@ export async function syncUserOnSignIn(user: User): Promise<{
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, privatePath);
+      if (isQuotaExceededError(error)) {
+        quotaHit = true;
+      } else {
+        handleFirestoreError(error, OperationType.CREATE, privatePath);
+      }
     }
-  } else if (email && email !== existingPrivate.email) {
+  } else if (existingPrivate && email && email !== existingPrivate.email && !quotaHit) {
     try {
       await updateDoc(doc(db, 'users', uid, 'private', 'info'), {
         email,
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, privatePath);
+      if (isQuotaExceededError(error)) {
+        quotaHit = true;
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, privatePath);
+      }
     }
   }
 
-  let finalProfileSnap;
-  let finalPrivateSnap;
-  try {
-    finalProfileSnap = await getDoc(doc(db, 'profiles', uid));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, profilePath);
+  let finalProfile = existingProfile;
+  if (!finalProfile && !quotaHit) {
+    try {
+      const snap = await getDoc(doc(db, 'profiles', uid));
+      if (snap.exists()) finalProfile = snap.data() as PublicProfile;
+    } catch (error) {
+      if (!isQuotaExceededError(error)) {
+        handleFirestoreError(error, OperationType.GET, profilePath);
+      }
+    }
   }
-  try {
-    finalPrivateSnap = await getDoc(doc(db, 'users', uid, 'private', 'info'));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, privatePath);
+
+  let finalPrivate = existingPrivate;
+  if (!finalPrivate && !quotaHit) {
+    try {
+      const snap = await getDoc(doc(db, 'users', uid, 'private', 'info'));
+      if (snap.exists()) finalPrivate = snap.data() as PrivateUserInfo;
+    } catch (error) {
+      if (!isQuotaExceededError(error)) {
+        handleFirestoreError(error, OperationType.GET, privatePath);
+      }
+    }
   }
 
-  const finalProfile = finalProfileSnap.data() as PublicProfile;
-  const finalPrivate = finalPrivateSnap.data() as PrivateUserInfo;
+  const resolvedProfile: PublicProfile = finalProfile || {
+    uid,
+    displayName,
+    displayNameLower: displayName.toLowerCase(),
+    handle: sanitizeHandle(user.email ? user.email.split('@')[0] : displayName, uid),
+    photoURL,
+    avatarSeed: '',
+    statusText: 'Snapping on CoolerUp',
+    snapScore: 0,
+    isOnline: true,
+    isDiscoverable: true,
+    lastSeenAt: null,
+    createdAt: null,
+    updatedAt: null,
+  };
 
-  await ensureSavedMessagesThread(finalProfile);
+  const resolvedPrivate: PrivateUserInfo = finalPrivate || {
+    uid,
+    email,
+    themeMode: 'light',
+    createdAt: null,
+    updatedAt: null,
+  };
 
-  return { profile: finalProfile, privateInfo: finalPrivate };
+  await saveLocalProfile(resolvedProfile);
+  await saveLocalPrivateInfo(resolvedPrivate);
+  await bootstrapLocalSavedChat(resolvedProfile);
+  if (!quotaHit) {
+    await ensureSavedMessagesThread(resolvedProfile);
+  }
+
+  return { profile: resolvedProfile, privateInfo: resolvedPrivate };
 }
 
 async function ensureSavedMessagesThread(profile: PublicProfile): Promise<void> {
@@ -230,11 +328,22 @@ async function ensureSavedMessagesThread(profile: PublicProfile): Promise<void> 
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.WRITE, chatPath);
   }
 }
 
+let lastOnlineWriteAt = 0;
+let lastOnlineState: boolean | null = null;
+
 export async function setUserOnlineStatus(uid: string, isOnline: boolean): Promise<void> {
+  const now = Date.now();
+  if (lastOnlineState === isOnline && now - lastOnlineWriteAt < 60_000) {
+    return;
+  }
+  lastOnlineWriteAt = now;
+  lastOnlineState = isOnline;
+
   const path = `profiles/${uid}`;
   try {
     await updateDoc(doc(db, 'profiles', uid), {
@@ -243,7 +352,8 @@ export async function setUserOnlineStatus(uid: string, isOnline: boolean): Promi
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    if (String(error).includes('Missing or insufficient permissions')) {
+    const str = String(error);
+    if (str.includes('Missing or insufficient permissions') || isQuotaExceededError(error)) {
       return;
     }
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -278,6 +388,19 @@ export async function updateUserProfile(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalProfile(uid, {
+        displayName: cleanName,
+        displayNameLower: cleanName.toLowerCase(),
+        handle: cleanHandle,
+        statusText: cleanStatus,
+        isDiscoverable: updates.isDiscoverable,
+        ...(updates.avatarSeed !== undefined
+          ? { avatarSeed: updates.avatarSeed.slice(0, LIMITS.AVATAR_SEED_MAX) }
+          : {}),
+      });
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -293,6 +416,10 @@ export async function updateThemePreference(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalThemePreference(uid, themeMode);
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -331,6 +458,10 @@ export async function sendFriendRequest(
       });
     }
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await upsertLocalFriendRequest(me.uid, friendshipId, me.uid, peer.uid);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -346,6 +477,11 @@ export async function respondToFriendRequest(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      const uid = auth.currentUser?.uid;
+      if (uid) await respondLocalFriendRequest(uid, friendshipId, accept);
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -355,11 +491,33 @@ export async function removeFriendship(friendshipId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'friendships', friendshipId));
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      const uid = auth.currentUser?.uid;
+      if (uid) await removeLocalFriendship(uid, friendshipId);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
 // --- Conversations & Messaging ---
+
+export async function getConversationById(conversationId: string): Promise<Conversation | null> {
+  try {
+    const snap = await getDoc(doc(db, 'conversations', conversationId));
+    if (snap.exists()) {
+      const conv = snap.data() as Conversation;
+      void cacheSet(`conv_${conversationId}`, conv);
+      return conv;
+    }
+    return await cacheGet<Conversation>(`conv_${conversationId}`);
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await cacheGet<Conversation>(`conv_${conversationId}`);
+    }
+    handleFirestoreError(error, OperationType.GET, `conversations/${conversationId}`);
+  }
+}
 
 export async function createOrOpenDirectChat(
   me: PublicProfile,
@@ -518,6 +676,9 @@ export async function createOrOpenDirectChat(
     await batch.commit();
     return conversationId;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await upsertLocalDirectChat(me, peer, conversationId);
+    }
     handleFirestoreError(error, OperationType.WRITE, convPath);
   }
 }
@@ -610,6 +771,9 @@ export async function createGroupChat(
     await batch.commit();
     return conversationId;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await createLocalGroupChat(me, title, peers);
+    }
     handleFirestoreError(error, OperationType.WRITE, convPath);
   }
 }
@@ -756,6 +920,21 @@ export async function sendMessage(params: {
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await appendLocalMessage({
+        conversation,
+        sender,
+        kind,
+        mediaType,
+        text: cleanText,
+        imageData: cleanImage,
+        snapDurationSec,
+        previewText: clampedPreview,
+        nextStreak,
+        replyTo,
+      });
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, msgPath);
   }
 }
@@ -798,6 +977,16 @@ export async function markSnapViewed(
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversation.id, message.id, (m) => ({
+        ...m,
+        snapStatus: 'opened',
+        snapViewedBy: m.snapViewedBy?.includes(viewerUid)
+          ? m.snapViewedBy
+          : [...(m.snapViewedBy || []), viewerUid],
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -827,6 +1016,14 @@ export async function markSnapReplayed(
     }
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversation.id, message.id, (m) => ({
+        ...m,
+        snapStatus: 'replayed',
+        snapReplayedBy: [...(m.snapReplayedBy || []), viewerUid],
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -856,6 +1053,14 @@ export async function markSnapScreenshotted(
     }
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversation.id, message.id, (m) => ({
+        ...m,
+        snapStatus: 'screenshotted',
+        snapScreenshottedBy: [...(m.snapScreenshottedBy || []), viewerUid],
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -885,7 +1090,14 @@ export async function consumeAndDeleteSnapMedia(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    if (String(error).includes('Missing or insufficient permissions')) return;
+    if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversation.id, message.id, (m) => ({
+        ...m,
+        imageData: '',
+        snapStatus: 'opened',
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -904,6 +1116,13 @@ export async function toggleSaveMessage(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversationId, messageId, (m) => ({
+        ...m,
+        savedBy: isSaved ? (m.savedBy || []).filter((id) => id !== uid) : [...(m.savedBy || []), uid],
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -914,6 +1133,10 @@ export async function deleteUserChat(uid: string, conversationId: string): Promi
   try {
     await deleteDoc(doc(db, 'users', uid, 'chats', conversationId));
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalUserChat(uid, conversationId);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -958,6 +1181,9 @@ export async function createStory(params: {
     await batch.commit();
     return storyId;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await createLocalStory({ author, mediaType, imageData, caption, durationSec });
+    }
     handleFirestoreError(error, OperationType.CREATE, storyPath);
   }
 }
@@ -970,7 +1196,7 @@ export async function markStoryViewed(storyId: string, viewerUid: string): Promi
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    if (String(error).includes('Missing or insufficient permissions')) return;
+    if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -980,6 +1206,10 @@ export async function deleteStory(storyId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'stories', storyId));
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalStory(storyId);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -1015,6 +1245,14 @@ export async function resolveSpotlightVideoSrc(video: SpotlightVideo): Promise<s
     return cached;
   }
 
+  const idbCachedDataUrl = await cacheGet<string>(`spotlight_media_${video.id}`);
+  if (idbCachedDataUrl) {
+    const blob = dataUrlToBlob(idbCachedDataUrl);
+    const objectUrl = URL.createObjectURL(blob);
+    resolvedVideoUrlCache.set(video.id, objectUrl);
+    return objectUrl;
+  }
+
   const count = video.chunkCount || 0;
   if (count <= 0) {
     throw new Error('Spotlight video media missing.');
@@ -1033,11 +1271,15 @@ export async function resolveSpotlightVideoSrc(video: SpotlightVideo): Promise<s
     if (!fullDataUrl) {
       throw new Error('Could not assemble 720p video chunks.');
     }
+    void cacheSet(`spotlight_media_${video.id}`, fullDataUrl);
     const blob = dataUrlToBlob(fullDataUrl);
     const objectUrl = URL.createObjectURL(blob);
     resolvedVideoUrlCache.set(video.id, objectUrl);
     return objectUrl;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      throw new Error('Video media is temporarily unavailable while daily cloud quota is full.');
+    }
     handleFirestoreError(error, OperationType.GET, path);
   }
 }
@@ -1060,6 +1302,16 @@ export async function createSpotlightVideo(params: {
     `Original Sound · ${author.displayName.split(' ')[0]}`;
   const cleanSoundId = soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX);
   const cleanResolution = resolution.slice(0, LIMITS.RESOLUTION_MAX);
+
+    // Multi-chunk path for true 720p HD videos with music (> 550 KB)
+    const chunks: string[] = [];
+    for (let offset = 0; offset < videoData.length; offset += LIMITS.SPOTLIGHT_CHUNK_MAX) {
+      chunks.push(videoData.slice(offset, offset + LIMITS.SPOTLIGHT_CHUNK_MAX));
+    }
+
+    if (chunks.length > LIMITS.SPOTLIGHT_MAX_CHUNKS) {
+      throw new Error('720p video is too large. Keep clips around 10–15 seconds.');
+    }
 
   try {
     if (videoData.length <= LIMITS.SPOTLIGHT_INLINE_MAX) {
@@ -1091,16 +1343,6 @@ export async function createSpotlightVideo(params: {
 
       await batch.commit();
       return videoId;
-    }
-
-    // Multi-chunk path for true 720p HD videos with music (> 550 KB)
-    const chunks: string[] = [];
-    for (let offset = 0; offset < videoData.length; offset += LIMITS.SPOTLIGHT_CHUNK_MAX) {
-      chunks.push(videoData.slice(offset, offset + LIMITS.SPOTLIGHT_CHUNK_MAX));
-    }
-
-    if (chunks.length > LIMITS.SPOTLIGHT_MAX_CHUNKS) {
-      throw new Error('720p video is too large. Keep clips around 10–15 seconds.');
     }
 
     await setDoc(videoRef, {
@@ -1151,9 +1393,20 @@ export async function createSpotlightVideo(params: {
       updatedAt: serverTimestamp(),
     });
     await publishBatch.commit();
+    void cacheSet(`spotlight_media_${videoId}`, videoData);
 
     return videoId;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await createLocalSpotlightVideo({
+        author,
+        videoData,
+        caption,
+        soundTitle: cleanSound,
+        soundTrackId: cleanSoundId,
+        resolution: cleanResolution,
+      });
+    }
     handleFirestoreError(error, OperationType.CREATE, path);
   }
 }
@@ -1171,6 +1424,13 @@ export async function toggleLikeSpotlightVideo(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalSpotlightVideo(videoId, (v) => ({
+        ...v,
+        likedBy: isLiked ? v.likedBy.filter((id) => id !== uid) : [...v.likedBy, uid],
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -1183,7 +1443,7 @@ export async function incrementSpotlightView(videoId: string): Promise<void> {
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    if (String(error).includes('Missing or insufficient permissions')) return;
+    if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -1201,6 +1461,14 @@ export async function updateSpotlightVideoSound(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalSpotlightVideo(videoId, (v) => ({
+        ...v,
+        soundTrackId: soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX),
+        soundTitle: soundTitle.trim().slice(0, LIMITS.SOUND_TITLE_MAX),
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -1222,6 +1490,10 @@ export async function deleteSpotlightVideo(videoId: string, chunkCount = 0): Pro
       resolvedVideoUrlCache.delete(videoId);
     }
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalSpotlightVideo(videoId);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -1260,6 +1532,14 @@ export async function editMessage(
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversation.id, messageId, (m) => ({
+        ...m,
+        text: cleanText,
+        edited: true,
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -1294,6 +1574,15 @@ export async function unsendMessage(
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversation.id, messageId, (m) => ({
+        ...m,
+        text: '',
+        imageData: '',
+        deleted: true,
+      }));
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -1313,6 +1602,15 @@ export async function toggleMessageReaction(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalMessageById(conversationId, messageId, (m) => {
+        const nextReactions = { ...(m.reactions || {}) };
+        if (alreadySame) delete nextReactions[uid];
+        else nextReactions[uid] = emoji.slice(0, LIMITS.QUICK_EMOJI_MAX);
+        return { ...m, reactions: nextReactions };
+      });
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, msgPath);
   }
 }
@@ -1330,7 +1628,7 @@ export async function setTypingStatus(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    if (String(error).includes('Missing or insufficient permissions')) return;
+    if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -1353,7 +1651,7 @@ export async function markConversationRead(
     });
     await batch.commit();
   } catch (error) {
-    if (String(error).includes('Missing or insufficient permissions')) return;
+    if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -1377,6 +1675,11 @@ export async function updateConversationAppearance(
     }
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      const uid = auth.currentUser?.uid;
+      if (uid) await updateLocalAppearance(uid, conversation.id, updates);
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, convPath);
   }
 }
@@ -1393,6 +1696,10 @@ export async function updateUserChatFlags(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalUserChatIndex(uid, conversationId, flags);
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -1419,6 +1726,12 @@ export async function renameGroupChat(
     }
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      const uid = auth.currentUser?.uid;
+      await updateLocalConversation(conversation.id, { title: cleanTitle });
+      if (uid) await updateLocalUserChatIndex(uid, conversation.id, { title: cleanTitle });
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, convPath);
   }
 }
@@ -1494,6 +1807,32 @@ export async function addMemberToGroupChat(
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalConversation(conversation.id, { memberIds: nextMemberIds });
+      const existingMembers = (await cacheGet<ConversationMember[]>(`members_${conversation.id}`)) || [];
+      const now = Timestamp.now();
+      await cacheSet(
+        `members_${conversation.id}`,
+        [
+          ...existingMembers,
+          {
+            uid: newMember.uid,
+            conversationId: conversation.id,
+            displayName: newMember.displayName,
+            photoURL: newMember.photoURL,
+            role: 'member',
+            memberIds: nextMemberIds,
+            isTyping: false,
+            typingAt: now,
+            lastReadAt: now,
+            joinedAt: now,
+            updatedAt: now,
+          } satisfies ConversationMember,
+        ],
+        true
+      );
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, convPath);
   }
 }
@@ -1524,6 +1863,10 @@ export async function leaveGroupChat(
     batch.delete(doc(db, 'users', uid, 'chats', conversation.id));
     await batch.commit();
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalUserChat(uid, conversation.id);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, convPath);
   }
 }

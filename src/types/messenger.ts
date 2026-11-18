@@ -213,5 +213,25 @@ export interface Story {
   updatedAt: Timestamp | null;
 }
 
-export type NavTab = 'chats' | 'camera' | 'stories' | 'people' | 'archived' | 'video';
+export interface SpotlightVideo {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorHandle: string;
+  authorPhotoURL: string;
+  authorAvatarSeed?: string;
+  videoData: string;
+  chunkCount?: number;
+  resolution?: string;
+  soundTrackId?: string;
+  caption: string;
+  soundTitle: string;
+  likedBy: string[];
+  viewCount: number;
+  isPublic: boolean;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export type NavTab = 'chats' | 'camera' | 'stories' | 'spotlight' | 'people' | 'archived' | 'video';
 export type ChatFilter = 'all' | 'snaps' | 'unread' | 'groups';

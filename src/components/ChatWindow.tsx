@@ -35,7 +35,13 @@ import {
   formatMessageTime,
   timestampToDate,
 } from '../lib/dateFormat';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, handleFirestoreError, isQuotaExceededError, OperationType } from '../lib/firebase';
+import {
+  bootstrapLocalSavedChat,
+  cacheGet,
+  cacheSet,
+  subscribeLocalCacheKey,
+} from '../lib/localFallbackStore';
 import { getStreakStatus } from '../lib/snapUtils';
 import { blobToBoundedDataUrl, compressImageToDataUrl, LIMITS } from '../lib/validation';
 import {
@@ -151,6 +157,9 @@ export function ChatWindow({
     return () => clearInterval(id);
   }, []);
 
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
   useEffect(() => {
     const convPath = `conversations/${conversationId}`;
     const membersPath = `conversations/${conversationId}/members`;
@@ -166,12 +175,17 @@ export function ChatWindow({
       }
     };
 
+    let unsubLocalConv: (() => void) | null = null;
+    let unsubLocalMembers: (() => void) | null = null;
+    let unsubLocalMessages: (() => void) | null = null;
+
     const unsubConv = onSnapshot(
       doc(db, 'conversations', conversationId),
       (snap) => {
         if (snap.exists()) {
           latestConv = snap.data() as Conversation;
           setConversation(latestConv);
+          void cacheSet(`conv_${conversationId}`, latestConv);
           syncParent();
         } else {
           setConversation(null);
@@ -179,6 +193,29 @@ export function ChatWindow({
         setLoading(false);
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          void (async () => {
+            if (conversationId === `saved_${currentUserRef.current.uid}`) {
+              await bootstrapLocalSavedChat(currentUserRef.current);
+            }
+            const cached = await cacheGet<Conversation>(`conv_${conversationId}`);
+            if (cached) {
+              latestConv = cached;
+              setConversation(cached);
+              syncParent();
+            }
+            setLoading(false);
+          })();
+          unsubLocalConv = subscribeLocalCacheKey<Conversation>(`conv_${conversationId}`, (cached) => {
+            if (cached) {
+              latestConv = cached;
+              setConversation(cached);
+              syncParent();
+              setLoading(false);
+            }
+          });
+          return;
+        }
         handleFirestoreError(error, OperationType.GET, convPath);
       }
     );
@@ -192,9 +229,23 @@ export function ChatWindow({
       (snap) => {
         latestMembers = snap.docs.map((d) => d.data() as ConversationMember);
         setMembers(latestMembers);
+        void cacheSet(`members_${conversationId}`, latestMembers);
         syncParent();
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          unsubLocalMembers = subscribeLocalCacheKey<ConversationMember[]>(
+            `members_${conversationId}`,
+            (cached) => {
+              if (cached) {
+                latestMembers = cached;
+                setMembers(cached);
+                syncParent();
+              }
+            }
+          );
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, membersPath);
       }
     );
@@ -215,9 +266,28 @@ export function ChatWindow({
           });
         latestMessages = list;
         setMessages(list);
+        void cacheSet(`messages_${conversationId}`, list);
         syncParent();
       },
       (error) => {
+        if (isQuotaExceededError(error)) {
+          unsubLocalMessages = subscribeLocalCacheKey<Message[]>(
+            `messages_${conversationId}`,
+            (cached) => {
+              if (cached) {
+                const sorted = [...cached].sort((a, b) => {
+                  const aMs = a.createdAt?.toMillis?.() ?? Date.now();
+                  const bMs = b.createdAt?.toMillis?.() ?? Date.now();
+                  return aMs - bMs;
+                });
+                latestMessages = sorted;
+                setMessages(sorted);
+                syncParent();
+              }
+            }
+          );
+          return;
+        }
         handleFirestoreError(error, OperationType.LIST, messagesPath);
       }
     );
@@ -226,12 +296,20 @@ export function ChatWindow({
       unsubConv();
       unsubMembers();
       unsubMessages();
+      unsubLocalConv?.();
+      unsubLocalMembers?.();
+      unsubLocalMessages?.();
     };
   }, [conversationId, currentUser.uid, onConversationLoaded]);
+
+  const lastMarkedReadKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (!conversation) return;
     if (chatIndex && chatIndex.unreadCount > 0) {
+      const key = `${conversationId}:${chatIndex.unreadCount}:${messages.length}`;
+      if (lastMarkedReadKeyRef.current === key) return;
+      lastMarkedReadKeyRef.current = key;
       void markConversationRead(conversationId, currentUser.uid);
     }
   }, [conversationId, currentUser.uid, conversation, chatIndex, messages.length]);

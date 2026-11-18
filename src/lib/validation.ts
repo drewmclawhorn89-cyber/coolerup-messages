@@ -153,6 +153,51 @@ export function unlockVideoTranscodeAudio(): void {
   }
 }
 
+export function pickSupportedVideoMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return undefined;
+  }
+  const candidates = [
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm',
+    'video/mp4;codecs=avc1,mp4a',
+    'video/mp4',
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
+async function resolveVideoDurationMs(video: HTMLVideoElement, fallbackMs: number): Promise<number> {
+  if (Number.isFinite(video.duration) && video.duration > 0) {
+    return Math.round(video.duration * 1000);
+  }
+  // WebM blobs produced by MediaRecorder often report duration = Infinity until seeked
+  return new Promise<number>((resolve) => {
+    let settled = false;
+    const finish = (ms: number) => {
+      if (settled) return;
+      settled = true;
+      resolve(ms);
+    };
+    const timeout = window.setTimeout(() => finish(fallbackMs), 800);
+    const onTimeUpdate = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener('timeupdate', onTimeUpdate);
+      const d = Number.isFinite(video.duration) && video.duration > 0 ? Math.round(video.duration * 1000) : fallbackMs;
+      video.currentTime = 0;
+      finish(d);
+    };
+    video.addEventListener('timeupdate', onTimeUpdate);
+    try {
+      video.currentTime = 1e6;
+    } catch {
+      window.clearTimeout(timeout);
+      video.removeEventListener('timeupdate', onTimeUpdate);
+      finish(fallbackMs);
+    }
+  });
+}
+
 /**
  * Transcodes a video Blob or File while PRESERVING its audio track via Web Audio
  * (createMediaElementSource -> createMediaStreamDestination) so audio/music is never muted out.
@@ -161,16 +206,20 @@ async function transcodeVideoSourceWithAudio(params: {
   source: Blob | File | string;
   targetShortSide: number;
   videoBitsPerSecond: number;
+  audioBitsPerSecond?: number;
   maxDurationMs: number;
   maxOutputLength: number;
+  knownDurationMs?: number;
   errorLabel: string;
 }): Promise<string> {
   const {
     source,
     targetShortSide,
     videoBitsPerSecond,
+    audioBitsPerSecond = 96_000,
     maxDurationMs,
     maxOutputLength,
+    knownDurationMs,
     errorLabel,
   } = params;
 
@@ -186,7 +235,6 @@ async function transcodeVideoSourceWithAudio(params: {
     const video = document.createElement('video');
     video.src = objectUrl;
     video.playsInline = true;
-    video.crossOrigin = 'anonymous';
     // Keep video unmuted so AudioContext / captureStream can tap the real audio track
     video.muted = false;
     video.volume = 1;
@@ -196,10 +244,15 @@ async function transcodeVideoSourceWithAudio(params: {
       video.onerror = () => reject(new Error('Could not decode selected video file.'));
     });
 
+    const detectedDurationMs =
+      knownDurationMs && knownDurationMs > 0
+        ? knownDurationMs
+        : await resolveVideoDurationMs(video, maxDurationMs);
+
     const rawW = video.videoWidth || 720;
     const rawH = video.videoHeight || 1280;
     // Scale so short side becomes targetShortSide (e.g., 720 for 720p HD) preserving exact aspect ratio
-    const scale = targetShortSide / Math.max(1, Math.min(rawW, rawH));
+    const scale = Math.min(1, targetShortSide / Math.max(1, Math.min(rawW, rawH)));
     // Ensure even dimensions for VP8/VP9 encoders
     const width = Math.max(180, Math.round((rawW * scale) / 2) * 2);
     const height = Math.max(180, Math.round((rawH * scale) / 2) * 2);
@@ -258,16 +311,12 @@ async function transcodeVideoSourceWithAudio(params: {
     }
 
     const outputStream = new MediaStream(combinedTracks);
-    const preferredMime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-      ? 'video/webm;codecs=vp8,opus'
-      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-      ? 'video/webm;codecs=vp9,opus'
-      : 'video/webm';
+    const preferredMime = pickSupportedVideoMimeType();
 
     const recorder = new MediaRecorder(outputStream, {
-      mimeType: preferredMime,
+      ...(preferredMime ? { mimeType: preferredMime } : {}),
       videoBitsPerSecond,
-      audioBitsPerSecond: 128_000,
+      audioBitsPerSecond,
     });
 
     const chunks: BlobPart[] = [];
@@ -277,7 +326,7 @@ async function transcodeVideoSourceWithAudio(params: {
 
     const done = new Promise<Blob>((resolve) => {
       recorder.onstop = () => {
-        resolve(new Blob(chunks, { type: preferredMime }));
+        resolve(new Blob(chunks, { type: preferredMime || recorder.mimeType || 'video/webm' }));
       };
     });
 
@@ -299,10 +348,7 @@ async function transcodeVideoSourceWithAudio(params: {
     recorder.start(200);
     drawFrame();
 
-    const clipMs = Math.min(
-      maxDurationMs,
-      Math.max(1200, Math.round((Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 8) * 1000))
-    );
+    const clipMs = Math.min(maxDurationMs, Math.max(900, detectedDurationMs));
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, clipMs);
       video.onended = () => {
@@ -372,7 +418,8 @@ export async function prepare720pVideoDataUrl(file: File): Promise<string> {
   return transcodeVideoSourceWithAudio({
     source: file,
     targetShortSide: 720,
-    videoBitsPerSecond: 1_250_000,
+    videoBitsPerSecond: 1_100_000,
+    audioBitsPerSecond: 128_000,
     maxDurationMs: 14_000,
     maxOutputLength: LIMITS.SPOTLIGHT_TOTAL_MAX,
     errorLabel: 'Spotlight 720p video',
@@ -381,9 +428,12 @@ export async function prepare720pVideoDataUrl(file: File): Promise<string> {
 
 /**
  * Compacts any video file or existing data URL into a single Firestore-document-safe Snap/Story
- * (< 650 KB) while preserving its audio/music track.
+ * (< 650 KB) while preserving its audio/music track, with automatic fallback pass so clips always post.
  */
-export async function transcodeVideoFileToBoundedDataUrl(source: File | string): Promise<string> {
+export async function transcodeVideoFileToBoundedDataUrl(
+  source: File | string,
+  options?: { knownDurationMs?: number }
+): Promise<string> {
   if (source instanceof File) {
     if (!source.type.startsWith('video/')) {
       throw new Error('Please select a valid video file (MP4, WebM, or MOV).');
@@ -396,12 +446,27 @@ export async function transcodeVideoFileToBoundedDataUrl(source: File | string):
     return source;
   }
 
-  return transcodeVideoSourceWithAudio({
-    source,
-    targetShortSide: 480,
-    videoBitsPerSecond: 520_000,
-    maxDurationMs: 6500,
-    maxOutputLength: LIMITS.IMAGE_DATA_MAX,
-    errorLabel: 'Video Snap',
-  });
+  try {
+    return await transcodeVideoSourceWithAudio({
+      source,
+      targetShortSide: 480,
+      videoBitsPerSecond: 380_000,
+      audioBitsPerSecond: 64_000,
+      maxDurationMs: 5500,
+      maxOutputLength: LIMITS.IMAGE_DATA_MAX,
+      knownDurationMs: options?.knownDurationMs,
+      errorLabel: 'Video Snap',
+    });
+  } catch {
+    return transcodeVideoSourceWithAudio({
+      source,
+      targetShortSide: 360,
+      videoBitsPerSecond: 240_000,
+      audioBitsPerSecond: 48_000,
+      maxDurationMs: 4200,
+      maxOutputLength: LIMITS.IMAGE_DATA_MAX,
+      knownDurationMs: options?.knownDurationMs,
+      errorLabel: 'Video Snap',
+    });
+  }
 }
