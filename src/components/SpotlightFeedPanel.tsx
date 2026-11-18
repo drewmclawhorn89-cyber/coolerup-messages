@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Bookmark,
   Camera,
   Check,
   ChevronDown,
@@ -9,6 +10,7 @@ import {
   Heart,
   Loader2,
   MessageCircle,
+  MessageSquare,
   Music2,
   Pause,
   Play,
@@ -16,10 +18,29 @@ import {
   Send,
   Trash2,
   Upload,
+  UserCheck,
+  UserPlus,
   Volume2,
   VolumeX,
   X,
 } from 'lucide-react';
+import {
+  collection,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+} from 'firebase/firestore';
+import {
+  db,
+  isQuotaExceededError,
+  isReadQuotaPaused,
+  markReadQuotaExceeded,
+} from '../lib/firebase';
+import {
+  mergeServerCacheList,
+  subscribeLocalCacheKey,
+} from '../lib/localFallbackStore';
 import {
   resumeSpotlightAudioContext,
   SPOTLIGHT_SOUND_TRACKS,
@@ -27,10 +48,15 @@ import {
   stopSpotlightTrack,
 } from '../lib/spotlightMusic';
 import { LIMITS, prepare720pVideoDataUrl, unlockVideoTranscodeAudio } from '../lib/validation';
-import { resolveSpotlightVideoSrc } from '../services/messengerService';
+import {
+  addSpotlightComment,
+  deleteSpotlightComment,
+  resolveSpotlightVideoSrc,
+} from '../services/messengerService';
 import type {
   Friendship,
   PublicProfile,
+  SpotlightComment,
   SpotlightVideo,
   UserChatIndex,
 } from '../types/messenger';
@@ -60,6 +86,8 @@ interface SpotlightFeedPanelProps {
   onToggleLike: (video: SpotlightVideo) => Promise<void>;
   onIncrementView: (videoId: string) => Promise<void>;
   onDeleteVideo: (video: SpotlightVideo) => Promise<void>;
+  onToggleFollow?: (targetUid: string, currentlyFollowing: boolean) => Promise<void>;
+  onSaveToMemory?: (video: SpotlightVideo, resolvedUrl: string) => Promise<void>;
   onStartDirectChat: (peer: PublicProfile) => Promise<void>;
   onForwardVideoToChat: (params: {
     conversationId?: string;
@@ -99,16 +127,26 @@ export function SpotlightFeedPanel({
   onToggleLike,
   onIncrementView,
   onDeleteVideo,
+  onToggleFollow,
+  onSaveToMemory,
   onStartDirectChat,
   onForwardVideoToChat,
 }: SpotlightFeedPanelProps) {
   const [filter, setFilter] = useState<FeedFilter>('foryou');
+  const [shuffleSeed] = useState<number>(() => Math.floor(Math.random() * 100000));
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(false);
   const [autoplayAudioBlocked, setAutoplayAudioBlocked] = useState(false);
   const [paused, setPaused] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [clipHasNoAudio, setClipHasNoAudio] = useState(false);
+  const [savedToastId, setSavedToastId] = useState<string | null>(null);
+
+  // Comments sheet state
+  const [commentsVideo, setCommentsVideo] = useState<SpotlightVideo | null>(null);
+  const [comments, setComments] = useState<SpotlightComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [postingComment, setPostingComment] = useState(false);
 
   // Resolved video src (supports inline & chunked 720p videos)
   const [resolvedSrc, setResolvedSrc] = useState<string>('');
@@ -142,8 +180,8 @@ export function SpotlightFeedPanel({
   const viewedIdsRef = useRef<Set<string>>(new Set());
   const touchStartYRef = useRef<number | null>(null);
 
-  const friendUids = useMemo(() => {
-    const set = new Set<string>([currentUser.uid]);
+  const friendAndFollowingUids = useMemo(() => {
+    const set = new Set<string>([currentUser.uid, ...(currentUser.following || [])]);
     for (const f of friendships) {
       if (f.status !== 'accepted') continue;
       for (const uid of f.userIds) {
@@ -151,17 +189,27 @@ export function SpotlightFeedPanel({
       }
     }
     return set;
-  }, [friendships, currentUser.uid]);
+  }, [friendships, currentUser.uid, currentUser.following]);
 
   const filteredVideos = useMemo(() => {
     if (filter === 'mine') {
       return videos.filter((v) => v.authorId === currentUser.uid);
     }
     if (filter === 'following') {
-      return videos.filter((v) => friendUids.has(v.authorId));
+      return videos.filter((v) => friendAndFollowingUids.has(v.authorId));
     }
-    return videos;
-  }, [videos, filter, friendUids, currentUser.uid]);
+    // Shuffle For You feed per visit while keeping stable order across likes/views updates
+    return [...videos].sort((a, b) => {
+      const hash = (id: string) => {
+        let h = shuffleSeed;
+        for (let i = 0; i < id.length; i++) {
+          h = Math.imul(h ^ id.charCodeAt(i), 2654435761);
+        }
+        return h >>> 0;
+      };
+      return hash(a.id) - hash(b.id);
+    });
+  }, [videos, filter, friendAndFollowingUids, currentUser.uid, shuffleSeed]);
 
   const safeIndex = filteredVideos.length > 0 ? Math.min(activeIndex, filteredVideos.length - 1) : 0;
   const activeVideo = filteredVideos[safeIndex] ?? null;
@@ -171,6 +219,51 @@ export function SpotlightFeedPanel({
     setPaused(false);
     setConfirmDeleteId(null);
   }, [filter]);
+
+  // Live comments subscription when comments drawer is open
+  useEffect(() => {
+    if (!commentsVideo) {
+      setComments([]);
+      return;
+    }
+    const vid = commentsVideo.id;
+    const unsubLocal = subscribeLocalCacheKey<SpotlightComment[]>(
+      `spotlight_comments_${vid}`,
+      (cached) => {
+        if (cached) setComments(cached);
+      }
+    );
+    if (vid.startsWith('local_') || isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+    const unsub = onSnapshot(
+      query(
+        collection(db, 'spotlightVideos', vid, 'comments'),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      ),
+      (snap) => {
+        const list = snap.docs.map((d) => d.data() as SpotlightComment);
+        void mergeServerCacheList<SpotlightComment>(`spotlight_comments_${vid}`, list).then(
+          (merged) => {
+            merged.sort(
+              (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+            );
+            setComments(merged);
+          }
+        );
+      },
+      (err) => {
+        if (isQuotaExceededError(err)) {
+          markReadQuotaExceeded();
+        }
+      }
+    );
+    return () => {
+      unsub();
+      unsubLocal();
+    };
+  }, [commentsVideo?.id]);
 
   // Resolve inline or chunked 720p video URL whenever activeVideo changes
   useEffect(() => {
@@ -752,7 +845,7 @@ export function SpotlightFeedPanel({
                       avatarSeed={activeAuthorProfile?.avatarSeed || activeVideo.authorAvatarSeed}
                       size="sm"
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-white truncate">
                         {activeVideo.authorName}
                       </p>
@@ -760,6 +853,32 @@ export function SpotlightFeedPanel({
                         @{activeVideo.authorHandle} · {formatRelativeTime(activeVideo.createdAt)}
                       </p>
                     </div>
+                    {!isOwner && onToggleFollow && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const following = (currentUser.following || []).includes(activeVideo.authorId);
+                          void onToggleFollow(activeVideo.authorId, following);
+                        }}
+                        className={`h-7 px-2.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
+                          (currentUser.following || []).includes(activeVideo.authorId)
+                            ? 'bg-white/20 text-white'
+                            : 'bg-[#FFFC00] text-slate-950'
+                        }`}
+                      >
+                        {(currentUser.following || []).includes(activeVideo.authorId) ? (
+                          <>
+                            <UserCheck className="w-3 h-3" />
+                            <span>Following</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-3 h-3" />
+                            <span>Follow</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {activeVideo.caption && (
@@ -800,6 +919,20 @@ export function SpotlightFeedPanel({
 
                   <button
                     type="button"
+                    onClick={() => setCommentsVideo(activeVideo)}
+                    aria-label="Open comments"
+                    className="flex flex-col items-center gap-1 cursor-pointer"
+                  >
+                    <span className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90">
+                      <MessageSquare className="w-5 h-5" />
+                    </span>
+                    <span className="text-[11px] font-mono-tabular font-semibold text-white">
+                      {formatCompactCount(activeVideo.commentCount || 0)}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setShareVideo(activeVideo)}
                     aria-label="Send video to chat"
                     className="flex flex-col items-center gap-1 cursor-pointer"
@@ -809,6 +942,33 @@ export function SpotlightFeedPanel({
                     </span>
                     <span className="text-[11px] font-medium text-white">Send</span>
                   </button>
+
+                  {onSaveToMemory && resolvedSrc && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void onSaveToMemory(activeVideo, resolvedSrc).then(() => {
+                          setSavedToastId(activeVideo.id);
+                          setTimeout(() => setSavedToastId(null), 2000);
+                        });
+                      }}
+                      aria-label="Save video to Memories"
+                      className="flex flex-col items-center gap-1 cursor-pointer"
+                    >
+                      <span
+                        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 ${
+                          savedToastId === activeVideo.id
+                            ? 'bg-[#FFFC00] text-slate-950'
+                            : 'bg-black/45 hover:bg-black/65 text-white'
+                        }`}
+                      >
+                        <Bookmark className="w-5 h-5" />
+                      </span>
+                      <span className="text-[11px] font-medium text-white">
+                        {savedToastId === activeVideo.id ? 'Saved!' : 'Save'}
+                      </span>
+                    </button>
+                  )}
 
                   {!isOwner && activeAuthorProfile && (
                     <button
@@ -1428,6 +1588,112 @@ export function SpotlightFeedPanel({
                 {savingMusic ? 'Saving Music...' : 'Save Music Track'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spotlight Comments Sheet */}
+      {commentsVideo && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setCommentsVideo(null)}
+        >
+          <div
+            className="w-full max-w-md max-h-[75vh] bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                  Comments ({comments.length})
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {commentsVideo.caption || `@${commentsVideo.authorHandle}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommentsVideo(null)}
+                aria-label="Close comments"
+                className="w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto chat-scroll p-4 space-y-3">
+              {comments.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
+                  No comments yet. Start the conversation!
+                </p>
+              ) : (
+                comments.map((cmt) => (
+                  <div key={cmt.id} className="flex items-start gap-2.5">
+                    <Avatar
+                      name={cmt.authorName}
+                      photoURL={cmt.authorPhotoURL}
+                      size="xs"
+                    />
+                    <div className="flex-1 min-w-0 bg-[#F4F6F9] dark:bg-slate-800/70 rounded-2xl px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {cmt.authorName}
+                        </span>
+                        {cmt.authorId === currentUser.uid && (
+                          <button
+                            type="button"
+                            onClick={() => void deleteSpotlightComment(commentsVideo.id, cmt.id)}
+                            aria-label="Delete comment"
+                            className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-200 mt-0.5 break-words">
+                        {cmt.text}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!commentText.trim() || postingComment) return;
+                setPostingComment(true);
+                try {
+                  await addSpotlightComment({
+                    videoId: commentsVideo.id,
+                    videoAuthorId: commentsVideo.authorId,
+                    author: currentUser,
+                    text: commentText,
+                  });
+                  setCommentText('');
+                } finally {
+                  setPostingComment(false);
+                }
+              }}
+              className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={commentText}
+                maxLength={500}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Add a comment..."
+                className="flex-1 h-10 px-3.5 rounded-full bg-[#F4F6F9] dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!commentText.trim() || postingComment}
+                className="h-10 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-xs font-bold cursor-pointer"
+              >
+                Post
+              </button>
+            </form>
           </div>
         </div>
       )}

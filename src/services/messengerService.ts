@@ -25,23 +25,36 @@ import {
   runFirestoreWrite,
 } from '../lib/firebase';
 import {
+  addLocalMemoryItem,
+  addLocalNotification,
+  addLocalSpotlightComment,
   appendLocalMessage,
   bootstrapLocalSavedChat,
   cacheGet,
   cacheSet,
+  clearLocalChatMessages,
   createLocalGroupChat,
   createLocalSpotlightVideo,
   createLocalStory,
+  deleteLocalMemoryItem,
+  deleteLocalNotification,
+  deleteLocalSpotlightComment,
   deleteLocalSpotlightVideo,
   deleteLocalStory,
   deleteLocalUserChat,
+  markAllLocalNotificationsRead,
+  markLocalNotificationRead,
   removeLocalFriendship,
   respondLocalFriendRequest,
   saveLocalPrivateInfo,
   saveLocalProfile,
+  toggleLocalFollowCreator,
+  toggleLocalMemoryLock,
+  toggleLocalStoryLike,
   updateLocalAppearance,
   updateLocalConversation,
   updateLocalMessageById,
+  updateLocalPrivateInfo,
   updateLocalProfile,
   updateLocalSpotlightVideo,
   updateLocalThemePreference,
@@ -49,8 +62,10 @@ import {
   upsertLocalDirectChat,
   upsertLocalFriendRequest,
 } from '../lib/localFallbackStore';
+import { uploadMediaWithFallback } from '../lib/storageService';
 import { clampText, LIMITS, sanitizeHandle } from '../lib/validation';
 import type {
+  AppNotificationType,
   ChatThemeId,
   Conversation,
   ConversationMember,
@@ -846,7 +861,19 @@ export async function sendMessage(params: {
     replyTo,
   } = params;
   const cleanText = text.slice(0, LIMITS.MESSAGE_TEXT_MAX);
-  const cleanImage = imageData.slice(0, LIMITS.IMAGE_DATA_MAX);
+  let rawMedia = imageData;
+  if (rawMedia && rawMedia.startsWith('data:') && !conversation.id.startsWith('local_') && !isWriteQuotaPaused()) {
+    const ext = mediaType === 'video' ? 'webm' : mediaType === 'audio' ? 'webm' : 'jpg';
+    const folder = kind === 'voice' ? 'voice' : kind === 'snap' ? 'snaps' : 'chat';
+    const uploaded = await uploadMediaWithFallback({
+      uid: sender.uid,
+      folder,
+      media: rawMedia,
+      ext,
+    });
+    rawMedia = uploaded.url;
+  }
+  const cleanImage = rawMedia.slice(0, LIMITS.IMAGE_DATA_MAX);
 
   if (!cleanText.trim() && !cleanImage) return;
 
@@ -1214,12 +1241,26 @@ export async function createStory(params: {
   imageData: string;
   caption: string;
   durationSec?: number;
+  locationLabel?: string;
+  lat?: number;
+  lng?: number;
 }): Promise<string> {
-  const { author, mediaType = 'photo', imageData, caption, durationSec = 5 } = params;
+  const { author, mediaType = 'photo', imageData, caption, durationSec = 5, locationLabel, lat, lng } = params;
   const storyRef = doc(collection(db, 'stories'));
   const storyId = storyRef.id;
   const storyPath = `stories/${storyId}`;
   const expiresAt = Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000);
+
+  let mediaUrl = imageData;
+  if (mediaUrl.startsWith('data:') && !isWriteQuotaPaused()) {
+    const uploaded = await uploadMediaWithFallback({
+      uid: author.uid,
+      folder: 'stories',
+      media: mediaUrl,
+      ext: mediaType === 'video' ? 'webm' : 'jpg',
+    });
+    mediaUrl = uploaded.url;
+  }
 
   try {
     const batch = writeBatch(db);
@@ -1230,10 +1271,13 @@ export async function createStory(params: {
       authorHandle: author.handle,
       authorPhotoURL: author.photoURL,
       mediaType,
-      imageData: imageData.slice(0, LIMITS.IMAGE_DATA_MAX),
+      imageData: mediaUrl.slice(0, LIMITS.IMAGE_DATA_MAX),
       caption: caption.trim().slice(0, LIMITS.STORY_CAPTION_MAX),
-      durationSec: Math.min(30, Math.max(1, durationSec)),
+      durationSec: Math.min(60, Math.max(1, durationSec)),
       viewerIds: [],
+      likedBy: [],
+      ...(locationLabel ? { locationLabel: locationLabel.slice(0, 120) } : {}),
+      ...(typeof lat === 'number' && typeof lng === 'number' ? { lat, lng } : {}),
       isPublicStory: true,
       expiresAt,
       createdAt: serverTimestamp(),
@@ -1249,7 +1293,7 @@ export async function createStory(params: {
     return storyId;
   } catch (error) {
     if (isQuotaExceededError(error)) {
-      return await createLocalStory({ author, mediaType, imageData, caption, durationSec });
+      return await createLocalStory({ author, mediaType, imageData: mediaUrl, caption, durationSec });
     }
     handleFirestoreError(error, OperationType.CREATE, storyPath);
   }
@@ -1379,18 +1423,34 @@ export async function createSpotlightVideo(params: {
   const cleanSoundId = soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX);
   const cleanResolution = resolution.slice(0, LIMITS.RESOLUTION_MAX);
 
-    // Multi-chunk path for true 720p HD videos with music (> 550 KB)
-    const chunks: string[] = [];
-    for (let offset = 0; offset < videoData.length; offset += LIMITS.SPOTLIGHT_CHUNK_MAX) {
-      chunks.push(videoData.slice(offset, offset + LIMITS.SPOTLIGHT_CHUNK_MAX));
+  // Prefer Firebase Storage for Spotlight video clips so playback is instant & unlimited
+  let resolvedMedia = videoData;
+  if (resolvedMedia.startsWith('data:') && !isWriteQuotaPaused()) {
+    const uploaded = await uploadMediaWithFallback({
+      uid: author.uid,
+      folder: 'spotlight',
+      media: resolvedMedia,
+      ext: 'webm',
+    });
+    if (uploaded.fromStorage) {
+      resolvedMedia = uploaded.url;
     }
+  }
 
-    if (chunks.length > LIMITS.SPOTLIGHT_MAX_CHUNKS) {
-      throw new Error('720p video is too large. Keep clips around 10–15 seconds.');
+  const isUrlMedia = resolvedMedia.startsWith('https://') || resolvedMedia.startsWith('http://');
+
+  const chunks: string[] = [];
+  if (!isUrlMedia && resolvedMedia.length > LIMITS.SPOTLIGHT_INLINE_MAX) {
+    for (let offset = 0; offset < resolvedMedia.length; offset += LIMITS.SPOTLIGHT_CHUNK_MAX) {
+      chunks.push(resolvedMedia.slice(offset, offset + LIMITS.SPOTLIGHT_CHUNK_MAX));
     }
+    if (chunks.length > LIMITS.SPOTLIGHT_MAX_CHUNKS) {
+      throw new Error('720p video is too large. Keep clips concise when Storage is unavailable.');
+    }
+  }
 
   try {
-    if (videoData.length <= LIMITS.SPOTLIGHT_INLINE_MAX) {
+    if (isUrlMedia || resolvedMedia.length <= LIMITS.SPOTLIGHT_INLINE_MAX) {
       const batch = writeBatch(db);
       batch.set(videoRef, {
         id: videoId,
@@ -1399,7 +1459,7 @@ export async function createSpotlightVideo(params: {
         authorHandle: author.handle.slice(0, LIMITS.HANDLE_MAX),
         authorPhotoURL: author.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
         authorAvatarSeed: (author.avatarSeed || '').slice(0, LIMITS.AVATAR_SEED_MAX),
-        videoData,
+        videoData: resolvedMedia,
         chunkCount: 0,
         resolution: cleanResolution,
         soundTrackId: cleanSoundId,
@@ -1407,6 +1467,7 @@ export async function createSpotlightVideo(params: {
         soundTitle: cleanSound,
         likedBy: [],
         viewCount: 0,
+        commentCount: 0,
         isPublic: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -1437,6 +1498,7 @@ export async function createSpotlightVideo(params: {
         soundTitle: cleanSound,
         likedBy: [],
         viewCount: 0,
+        commentCount: 0,
         isPublic: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -1475,14 +1537,14 @@ export async function createSpotlightVideo(params: {
       updatedAt: serverTimestamp(),
     });
     await runFirestoreWrite(() => publishBatch.commit());
-    void cacheSet(`spotlight_media_${videoId}`, videoData);
+    void cacheSet(`spotlight_media_${videoId}`, resolvedMedia);
 
     return videoId;
   } catch (error) {
     if (isQuotaExceededError(error)) {
       return await createLocalSpotlightVideo({
         author,
-        videoData,
+        videoData: resolvedMedia,
         caption,
         soundTitle: cleanSound,
         soundTrackId: cleanSoundId,
@@ -1993,3 +2055,525 @@ export async function leaveGroupChat(
     handleFirestoreError(error, OperationType.WRITE, convPath);
   }
 }
+
+// --- Memories & My Eyes Only ---
+
+export async function hashMyEyesOnlyPin(pin: string): Promise<string> {
+  const clean = pin.trim();
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const encoded = new TextEncoder().encode(`coolerup_meo_${clean}`);
+    const digest = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return `pin_${clean}`;
+}
+
+export async function saveMemoryItem(params: {
+  userId: string;
+  mediaUrl: string;
+  mediaType: 'photo' | 'video';
+  caption?: string;
+  source?: 'snap' | 'camera_roll' | 'spotlight';
+  locked?: boolean;
+}): Promise<string> {
+  const { userId, mediaUrl, mediaType, caption = '', source = 'snap', locked = false } = params;
+  let finalUrl = mediaUrl;
+  if (finalUrl.startsWith('data:') && !isWriteQuotaPaused()) {
+    const uploaded = await uploadMediaWithFallback({
+      uid: userId,
+      folder: 'memories',
+      media: finalUrl,
+      ext: mediaType === 'video' ? 'webm' : 'jpg',
+    });
+    finalUrl = uploaded.url;
+  }
+  if (finalUrl.length > LIMITS.IMAGE_DATA_MAX) {
+    return await addLocalMemoryItem({ userId, mediaUrl: finalUrl, mediaType, caption, source, locked });
+  }
+
+  const memRef = doc(collection(db, 'users', userId, 'memories'));
+  const memoryId = memRef.id;
+  const path = `users/${userId}/memories/${memoryId}`;
+  try {
+    await runFirestoreWrite(() =>
+      setDoc(memRef, {
+        id: memoryId,
+        userId,
+        mediaUrl: finalUrl,
+        mediaType,
+        caption: caption.trim().slice(0, LIMITS.STORY_CAPTION_MAX),
+        source,
+        locked,
+        savedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+    return memoryId;
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await addLocalMemoryItem({ userId, mediaUrl: finalUrl, mediaType, caption, source, locked });
+    }
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function toggleMemoryLock(
+  userId: string,
+  memoryId: string,
+  locked: boolean
+): Promise<void> {
+  if (memoryId.startsWith('local_') || isWriteQuotaPaused()) {
+    await toggleLocalMemoryLock(userId, memoryId, locked);
+    return;
+  }
+  const path = `users/${userId}/memories/${memoryId}`;
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'users', userId, 'memories', memoryId), {
+        locked,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await toggleLocalMemoryLock(userId, memoryId, locked);
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteMemoryItem(userId: string, memoryId: string): Promise<void> {
+  if (memoryId.startsWith('local_') || isWriteQuotaPaused()) {
+    await deleteLocalMemoryItem(userId, memoryId);
+    return;
+  }
+  const path = `users/${userId}/memories/${memoryId}`;
+  try {
+    await runFirestoreWrite(() => deleteDoc(doc(db, 'users', userId, 'memories', memoryId)));
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalMemoryItem(userId, memoryId);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// --- Notifications ---
+
+export async function createNotification(params: {
+  userId: string;
+  type: AppNotificationType;
+  fromUser: PublicProfile;
+  message: string;
+}): Promise<void> {
+  const { userId, type, fromUser, message } = params;
+  if (!userId || userId === fromUser.uid) return;
+  if (isWriteQuotaPaused()) {
+    await addLocalNotification({
+      userId,
+      type,
+      fromUserId: fromUser.uid,
+      fromUserName: fromUser.displayName,
+      fromPhotoURL: fromUser.photoURL,
+      message,
+    });
+    return;
+  }
+  const notifRef = doc(collection(db, 'users', userId, 'notifications'));
+  try {
+    await runFirestoreWrite(() =>
+      setDoc(notifRef, {
+        id: notifRef.id,
+        userId,
+        type,
+        fromUserId: fromUser.uid,
+        fromUserName: fromUser.displayName.slice(0, LIMITS.DISPLAY_NAME_MAX),
+        fromPhotoURL: fromUser.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
+        message: message.slice(0, 240),
+        read: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch {
+    // Non-fatal side-effect notification
+  }
+}
+
+export async function markNotificationRead(userId: string, notificationId: string): Promise<void> {
+  if (notificationId.startsWith('local_') || isWriteQuotaPaused()) {
+    await markLocalNotificationRead(userId, notificationId);
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'users', userId, 'notifications', notificationId), {
+        read: true,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await markLocalNotificationRead(userId, notificationId);
+    }
+  }
+}
+
+export async function markAllNotificationsRead(
+  userId: string,
+  unreadIds: string[]
+): Promise<void> {
+  await markAllLocalNotificationsRead(userId);
+  if (isWriteQuotaPaused() || unreadIds.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    unreadIds
+      .filter((id) => !id.startsWith('local_'))
+      .slice(0, 30)
+      .forEach((id) => {
+        batch.update(doc(db, 'users', userId, 'notifications', id), {
+          read: true,
+          updatedAt: serverTimestamp(),
+        });
+      });
+    await runFirestoreWrite(() => batch.commit());
+  } catch {
+    // Best-effort mark read
+  }
+}
+
+export async function deleteNotification(userId: string, notificationId: string): Promise<void> {
+  if (notificationId.startsWith('local_') || isWriteQuotaPaused()) {
+    await deleteLocalNotification(userId, notificationId);
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      deleteDoc(doc(db, 'users', userId, 'notifications', notificationId))
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalNotification(userId, notificationId);
+    }
+  }
+}
+
+// --- Spotlight Comments & Creator Follow ---
+
+export async function addSpotlightComment(params: {
+  videoId: string;
+  videoAuthorId: string;
+  author: PublicProfile;
+  text: string;
+}): Promise<string> {
+  const { videoId, videoAuthorId, author, text } = params;
+  const cleanText = text.trim().slice(0, 500);
+  if (!cleanText) return '';
+
+  if (videoId.startsWith('local_') || isWriteQuotaPaused()) {
+    return await addLocalSpotlightComment({ videoId, author, text: cleanText });
+  }
+
+  const cmtRef = doc(collection(db, 'spotlightVideos', videoId, 'comments'));
+  const path = `spotlightVideos/${videoId}/comments/${cmtRef.id}`;
+  try {
+    const batch = writeBatch(db);
+    batch.set(cmtRef, {
+      id: cmtRef.id,
+      videoId,
+      authorId: author.uid,
+      authorName: author.displayName.slice(0, LIMITS.DISPLAY_NAME_MAX),
+      authorHandle: author.handle.slice(0, LIMITS.HANDLE_MAX),
+      authorPhotoURL: author.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
+      text: cleanText,
+      createdAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'spotlightVideos', videoId), {
+      commentCount: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+    await runFirestoreWrite(() => batch.commit());
+    if (videoAuthorId !== author.uid) {
+      void createNotification({
+        userId: videoAuthorId,
+        type: 'spotlight_comment',
+        fromUser: author,
+        message: `commented on your Spotlight: "${cleanText.slice(0, 80)}"`,
+      });
+    }
+    return cmtRef.id;
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      return await addLocalSpotlightComment({ videoId, author, text: cleanText });
+    }
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function deleteSpotlightComment(
+  videoId: string,
+  commentId: string
+): Promise<void> {
+  if (videoId.startsWith('local_') || commentId.startsWith('local_') || isWriteQuotaPaused()) {
+    await deleteLocalSpotlightComment(videoId, commentId);
+    return;
+  }
+  const path = `spotlightVideos/${videoId}/comments/${commentId}`;
+  try {
+    await runFirestoreWrite(() =>
+      deleteDoc(doc(db, 'spotlightVideos', videoId, 'comments', commentId))
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await deleteLocalSpotlightComment(videoId, commentId);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function toggleFollowCreator(
+  meUid: string,
+  targetUid: string,
+  currentlyFollowing: boolean
+): Promise<void> {
+  if (!meUid || !targetUid || meUid === targetUid) return;
+  if (isWriteQuotaPaused()) {
+    await toggleLocalFollowCreator(meUid, targetUid);
+    return;
+  }
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'profiles', meUid), {
+      following: currentlyFollowing ? arrayRemove(targetUid) : arrayUnion(targetUid),
+      updatedAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'profiles', targetUid), {
+      followers: currentlyFollowing ? arrayRemove(meUid) : arrayUnion(meUid),
+      updatedAt: serverTimestamp(),
+    });
+    await runFirestoreWrite(() => batch.commit());
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await toggleLocalFollowCreator(meUid, targetUid);
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `profiles/${targetUid}`);
+  }
+}
+
+export async function toggleLikeStory(
+  storyId: string,
+  uid: string,
+  currentLikedBy: string[] = []
+): Promise<void> {
+  if (storyId.startsWith('local_') || isWriteQuotaPaused()) {
+    await toggleLocalStoryLike(storyId, uid);
+    return;
+  }
+  const liked = currentLikedBy.includes(uid);
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'stories', storyId), {
+        likedBy: liked ? arrayRemove(uid) : arrayUnion(uid),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await toggleLocalStoryLike(storyId, uid);
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `stories/${storyId}`);
+  }
+}
+
+// --- Snap Map Location & Ghost Mode ---
+
+export async function updateUserLocation(
+  uid: string,
+  lat: number,
+  lng: number,
+  locationLabel: string
+): Promise<void> {
+  const cleanLabel = locationLabel.trim().slice(0, 120);
+  if (isWriteQuotaPaused()) {
+    await updateLocalProfile(uid, { lat, lng, locationLabel: cleanLabel });
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'profiles', uid), {
+        lat,
+        lng,
+        locationLabel: cleanLabel,
+        locationUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalProfile(uid, { lat, lng, locationLabel: cleanLabel });
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `profiles/${uid}`);
+  }
+}
+
+export async function toggleGhostMode(uid: string, ghostMode: boolean): Promise<void> {
+  if (isWriteQuotaPaused()) {
+    await updateLocalProfile(uid, { ghostMode });
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'profiles', uid), {
+        ghostMode,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalProfile(uid, { ghostMode });
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `profiles/${uid}`);
+  }
+}
+
+// --- Chat Clear, Privacy Settings, Safety & Trophies ---
+
+export async function clearUnsavedChat(uid: string, conversationId: string): Promise<void> {
+  if (conversationId.startsWith('local_') || isWriteQuotaPaused()) {
+    await clearLocalChatMessages(uid, conversationId);
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'users', uid, 'chats', conversationId), {
+        clearedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await clearLocalChatMessages(uid, conversationId);
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `users/${uid}/chats/${conversationId}`);
+  }
+}
+
+export async function updatePrivateSettings(
+  uid: string,
+  updates: Partial<
+    Pick<
+      PrivateUserInfo,
+      | 'birthday'
+      | 'phoneNumber'
+      | 'myEyesOnlyPinHash'
+      | 'privacyContact'
+      | 'privacyStory'
+      | 'privacyQuickAdd'
+      | 'blockedUids'
+      | 'notificationsEnabled'
+      | 'themeMode'
+    >
+  >
+): Promise<void> {
+  if (isWriteQuotaPaused()) {
+    await updateLocalPrivateInfo(uid, updates);
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'users', uid, 'private', 'info'), {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await updateLocalPrivateInfo(uid, updates);
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await updateLocalPrivateInfo(uid, updates);
+      return;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `users/${uid}/private/info`);
+  }
+}
+
+export async function blockUser(
+  uid: string,
+  targetUid: string,
+  currentBlocked: string[] = []
+): Promise<void> {
+  if (!uid || !targetUid || uid === targetUid) return;
+  const next = Array.from(new Set([...currentBlocked, targetUid]));
+  await updatePrivateSettings(uid, { blockedUids: next });
+}
+
+export async function unblockUser(
+  uid: string,
+  targetUid: string,
+  currentBlocked: string[] = []
+): Promise<void> {
+  const next = currentBlocked.filter((id) => id !== targetUid);
+  await updatePrivateSettings(uid, { blockedUids: next });
+}
+
+export async function reportUser(params: {
+  reporterId: string;
+  targetUserId: string;
+  reason: string;
+  details?: string;
+}): Promise<void> {
+  const { reporterId, targetUserId, reason, details = '' } = params;
+  if (!reporterId || !targetUserId || reporterId === targetUserId) return;
+  if (isWriteQuotaPaused()) return;
+  const repRef = doc(collection(db, 'reports'));
+  try {
+    await runFirestoreWrite(() =>
+      setDoc(repRef, {
+        id: repRef.id,
+        reporterId,
+        targetUserId,
+        reason: reason.trim().slice(0, 100) || 'Inappropriate behavior',
+        details: details.trim().slice(0, 500),
+        createdAt: serverTimestamp(),
+      })
+    );
+  } catch (error) {
+    if (!isQuotaExceededError(error)) {
+      handleFirestoreError(error, OperationType.CREATE, `reports/${repRef.id}`);
+    }
+  }
+}
+
+export async function awardTrophyIfMissing(
+  profile: PublicProfile,
+  trophyId: string
+): Promise<void> {
+  const existing = profile.trophies || [];
+  if (existing.includes(trophyId)) return;
+  const next = Array.from(new Set([...existing, trophyId])).slice(0, 30);
+  if (isWriteQuotaPaused()) {
+    await updateLocalProfile(profile.uid, { trophies: next });
+    return;
+  }
+  try {
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'profiles', profile.uid), {
+        trophies: next,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  } catch {
+    // Non-fatal trophy sync
+  }
+}
+

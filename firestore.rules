@@ -66,11 +66,13 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'uid', 'displayName', 'displayNameLower', 'handle',
-          'photoURL', 'avatarSeed', 'statusText', 'snapScore', 'isOnline', 'isDiscoverable',
+          'photoURL', 'avatarSeed', 'statusText', 'snapScore',
+          'trophies', 'ghostMode', 'lat', 'lng', 'locationLabel', 'locationUpdatedAt',
+          'followers', 'following',
+          'isOnline', 'isDiscoverable',
           'lastSeenAt', 'createdAt', 'updatedAt'
         ])
         && isValidId(data.uid)
-        && data.uid == request.auth.uid
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
         && data.displayNameLower is string && data.displayNameLower.size() >= 1 && data.displayNameLower.size() <= 80
         && data.handle is string && data.handle.size() >= 2 && data.handle.size() <= 40 && data.handle.matches('^[a-z0-9_.-]+$')
@@ -78,6 +80,14 @@ service cloud.firestore {
         && (!('avatarSeed' in data) || (data.avatarSeed is string && data.avatarSeed.size() <= 120))
         && data.statusText is string && data.statusText.size() <= 140
         && (!('snapScore' in data) || (data.snapScore is int && data.snapScore >= 0 && data.snapScore <= 10000000))
+        && (!('trophies' in data) || isValidBoundedUidList(data.trophies, 30))
+        && (!('ghostMode' in data) || data.ghostMode is bool)
+        && (!('lat' in data) || (data.lat is number && data.lat >= -90 && data.lat <= 90))
+        && (!('lng' in data) || (data.lng is number && data.lng >= -180 && data.lng <= 180))
+        && (!('locationLabel' in data) || (data.locationLabel is string && data.locationLabel.size() <= 120))
+        && (!('locationUpdatedAt' in data) || data.locationUpdatedAt is timestamp)
+        && (!('followers' in data) || isValidBoundedUidList(data.followers, 500))
+        && (!('following' in data) || isValidBoundedUidList(data.following, 500))
         && data.isOnline is bool
         && data.isDiscoverable is bool
         && data.lastSeenAt is timestamp
@@ -87,11 +97,25 @@ service cloud.firestore {
 
     function isValidPrivateUserInfo(data) {
       return data.keys().hasAll(['uid', 'email', 'themeMode', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'email', 'themeMode', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'email', 'themeMode',
+          'birthday', 'phoneNumber', 'myEyesOnlyPinHash',
+          'privacyContact', 'privacyStory', 'privacyQuickAdd',
+          'blockedUids', 'notificationsEnabled',
+          'createdAt', 'updatedAt'
+        ])
         && isValidId(data.uid)
         && data.uid == request.auth.uid
         && data.email is string && data.email.size() <= 254
         && data.themeMode in ['light', 'dark']
+        && (!('birthday' in data) || (data.birthday is string && data.birthday.size() <= 24))
+        && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 32))
+        && (!('myEyesOnlyPinHash' in data) || (data.myEyesOnlyPinHash is string && data.myEyesOnlyPinHash.size() <= 128))
+        && (!('privacyContact' in data) || data.privacyContact in ['everyone', 'friends'])
+        && (!('privacyStory' in data) || data.privacyStory in ['everyone', 'friends', 'custom'])
+        && (!('privacyQuickAdd' in data) || data.privacyQuickAdd is bool)
+        && (!('blockedUids' in data) || isValidBoundedUidList(data.blockedUids, 200))
+        && (!('notificationsEnabled' in data) || data.notificationsEnabled is bool)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -123,7 +147,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'conversationId', 'userId', 'type', 'title', 'photoURL', 'peerUid',
           'themeId', 'quickEmoji', 'lastMessageKind', 'lastMediaType', 'lastSnapStatus',
-          'lastSnapOpened', 'streakCount', 'lastSnapAt',
+          'lastSnapOpened', 'streakCount', 'lastSnapAt', 'clearedAt',
           'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
           'lastMessageAt', 'lastReadAt', 'unreadCount',
           'pinned', 'muted', 'archived', 'createdAt', 'updatedAt'
@@ -142,6 +166,7 @@ service cloud.firestore {
         && (!('lastSnapOpened' in data) || data.lastSnapOpened is bool)
         && (!('streakCount' in data) || (data.streakCount is int && data.streakCount >= 0 && data.streakCount <= 100000))
         && (!('lastSnapAt' in data) || data.lastSnapAt is timestamp)
+        && (!('clearedAt' in data) || data.clearedAt is timestamp)
         && data.lastMessageText is string && data.lastMessageText.size() <= 500
         && data.lastMessageSenderId is string && data.lastMessageSenderId.size() <= 128
         && data.lastMessageSenderName is string && data.lastMessageSenderName.size() <= 80
@@ -257,7 +282,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'id', 'authorId', 'authorName', 'authorHandle', 'authorPhotoURL',
-          'mediaType', 'imageData', 'caption', 'durationSec', 'viewerIds', 'isPublicStory',
+          'mediaType', 'imageData', 'caption', 'durationSec', 'viewerIds', 'likedBy',
+          'locationLabel', 'lat', 'lng', 'isPublicStory',
           'expiresAt', 'createdAt', 'updatedAt'
         ])
         && data.id == storyId
@@ -268,8 +294,12 @@ service cloud.firestore {
         && (!('mediaType' in data) || data.mediaType in ['photo', 'video'])
         && data.imageData is string && data.imageData.size() >= 1 && data.imageData.size() <= 650000
         && data.caption is string && data.caption.size() <= 200
-        && data.durationSec is int && data.durationSec >= 1 && data.durationSec <= 30
+        && data.durationSec is int && data.durationSec >= 1 && data.durationSec <= 60
         && isValidBoundedUidList(data.viewerIds, 200)
+        && (!('likedBy' in data) || isValidBoundedUidList(data.likedBy, 200))
+        && (!('locationLabel' in data) || (data.locationLabel is string && data.locationLabel.size() <= 120))
+        && (!('lat' in data) || (data.lat is number && data.lat >= -90 && data.lat <= 90))
+        && (!('lng' in data) || (data.lng is number && data.lng >= -180 && data.lng <= 180))
         && data.isPublicStory is bool
         && data.expiresAt is timestamp
         && data.createdAt is timestamp
@@ -285,7 +315,8 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'authorId', 'authorName', 'authorHandle', 'authorPhotoURL',
           'authorAvatarSeed', 'videoData', 'chunkCount', 'resolution', 'soundTrackId',
-          'caption', 'soundTitle', 'likedBy', 'viewCount', 'isPublic', 'createdAt', 'updatedAt'
+          'caption', 'soundTitle', 'likedBy', 'viewCount', 'commentCount', 'isPublic',
+          'createdAt', 'updatedAt'
         ])
         && data.id == videoId
         && isValidId(data.authorId)
@@ -302,6 +333,7 @@ service cloud.firestore {
         && data.soundTitle is string && data.soundTitle.size() <= 80
         && isValidBoundedUidList(data.likedBy, 500)
         && data.viewCount is int && data.viewCount >= 0 && data.viewCount <= 10000000
+        && (!('commentCount' in data) || (data.commentCount is int && data.commentCount >= 0 && data.commentCount <= 1000000))
         && data.isPublic is bool
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -320,6 +352,87 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidSpotlightComment(data, videoId, commentId) {
+      return data.keys().hasAll([
+          'id', 'videoId', 'authorId', 'authorName', 'authorHandle',
+          'authorPhotoURL', 'text', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'videoId', 'authorId', 'authorName', 'authorHandle',
+          'authorPhotoURL', 'text', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.id == commentId
+        && isValidId(data.videoId)
+        && data.videoId == videoId
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.authorHandle is string && data.authorHandle.size() >= 2 && data.authorHandle.size() <= 40
+        && data.authorPhotoURL is string && data.authorPhotoURL.size() <= 1000
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMemoryItem(data, userId, memoryId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'mediaUrl', 'mediaType', 'caption',
+          'source', 'locked', 'savedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userId', 'mediaUrl', 'mediaType', 'caption',
+          'source', 'locked', 'savedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.id == memoryId
+        && isValidId(data.userId)
+        && data.userId == userId
+        && data.mediaUrl is string && data.mediaUrl.size() >= 1 && data.mediaUrl.size() <= 650000
+        && data.mediaType in ['photo', 'video']
+        && data.caption is string && data.caption.size() <= 200
+        && data.source in ['snap', 'camera_roll', 'spotlight']
+        && data.locked is bool
+        && data.savedAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data, userId, notificationId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'type', 'fromUserId', 'fromUserName',
+          'fromPhotoURL', 'message', 'read', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userId', 'type', 'fromUserId', 'fromUserName',
+          'fromPhotoURL', 'message', 'read', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.id == notificationId
+        && isValidId(data.userId)
+        && data.userId == userId
+        && data.type in ['snap', 'chat', 'friend_request', 'friend_accept', 'story_like', 'spotlight_like', 'spotlight_comment', 'screenshot', 'system']
+        && isValidId(data.fromUserId)
+        && data.fromUserName is string && data.fromUserName.size() >= 1 && data.fromUserName.size() <= 80
+        && data.fromPhotoURL is string && data.fromPhotoURL.size() <= 1000
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 240
+        && data.read is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserReport(data, reportId) {
+      return data.keys().hasAll(['id', 'reporterId', 'targetUserId', 'reason', 'details', 'createdAt'])
+        && data.keys().hasOnly(['id', 'reporterId', 'targetUserId', 'reason', 'details', 'createdAt'])
+        && isValidId(data.id)
+        && data.id == reportId
+        && isValidId(data.reporterId)
+        && data.reporterId == request.auth.uid
+        && isValidId(data.targetUserId)
+        && data.reporterId != data.targetUserId
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 100
+        && data.details is string && data.details.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
     // --- 1. Public Profiles Directory ---
     match /profiles/{profileId} {
       allow get: if isSignedIn() && isValidId(profileId);
@@ -328,6 +441,7 @@ service cloud.firestore {
       allow create: if isVerifiedUser()
         && isValidId(profileId)
         && profileId == request.auth.uid
+        && incoming().uid == request.auth.uid
         && isValidPublicProfile(incoming())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
@@ -335,15 +449,32 @@ service cloud.firestore {
 
       allow update: if isVerifiedUser()
         && isValidId(profileId)
-        && isOwner(profileId)
         && isValidPublicProfile(incoming())
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly([
-          'displayName', 'displayNameLower', 'handle', 'photoURL', 'avatarSeed',
-          'statusText', 'snapScore', 'isOnline', 'isDiscoverable', 'lastSeenAt', 'updatedAt'
-        ]);
+        && (
+          (isOwner(profileId) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'displayNameLower', 'handle', 'photoURL', 'avatarSeed',
+            'statusText', 'snapScore', 'trophies', 'ghostMode', 'lat', 'lng',
+            'locationLabel', 'locationUpdatedAt', 'following',
+            'isOnline', 'isDiscoverable', 'lastSeenAt', 'updatedAt'
+          ]))
+          ||
+          // Verified peer may only follow/unfollow themselves on another creator's followers list
+          (!isOwner(profileId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['followers', 'updatedAt'])
+            && (
+              (!('followers' in existing()) && incoming().followers == [request.auth.uid])
+              || (
+                'followers' in existing()
+                && (
+                  (!(request.auth.uid in existing().followers) && request.auth.uid in incoming().followers && incoming().followers.hasAll(existing().followers) && incoming().followers.size() == existing().followers.size() + 1)
+                  || (request.auth.uid in existing().followers && !(request.auth.uid in incoming().followers) && existing().followers.hasAll(incoming().followers) && existing().followers.size() == incoming().followers.size() + 1)
+                )
+              )
+            ))
+        );
     }
 
     // --- 2. Private User Info (PII Isolation) ---
@@ -367,7 +498,72 @@ service cloud.firestore {
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'themeMode', 'updatedAt']);
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'email', 'themeMode', 'birthday', 'phoneNumber', 'myEyesOnlyPinHash',
+          'privacyContact', 'privacyStory', 'privacyQuickAdd',
+          'blockedUids', 'notificationsEnabled', 'updatedAt'
+        ]);
+    }
+
+    // --- 2b. Private User Memories (Saved Snaps, Camera Roll, My Eyes Only) ---
+    match /users/{userId}/memories/{memoryId} {
+      allow get, list: if isSignedIn() && isValidId(userId) && isOwner(userId);
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(memoryId)
+        && isOwner(userId)
+        && isValidMemoryItem(incoming(), userId, memoryId)
+        && incoming().savedAt == request.time
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(memoryId)
+        && isOwner(userId)
+        && isValidMemoryItem(incoming(), userId, memoryId)
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['locked', 'caption', 'updatedAt']);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(memoryId)
+        && isOwner(userId);
+    }
+
+    // --- 2c. User Notifications ---
+    match /users/{userId}/notifications/{notificationId} {
+      allow get, list: if isSignedIn() && isValidId(userId) && isOwner(userId);
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(notificationId)
+        && isValidNotification(incoming(), userId, notificationId)
+        && incoming().fromUserId == request.auth.uid
+        && incoming().read == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(notificationId)
+        && isOwner(userId)
+        && isValidNotification(incoming(), userId, notificationId)
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().fromUserId == existing().fromUserId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt']);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(notificationId)
+        && isOwner(userId);
     }
 
     // --- 3. Friendships & Requests ---
@@ -438,7 +634,7 @@ service cloud.firestore {
         && (
           (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
             'title', 'photoURL', 'themeId', 'quickEmoji',
-            'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'lastSnapOpened', 'streakCount', 'lastSnapAt',
+            'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'lastSnapOpened', 'streakCount', 'lastSnapAt', 'clearedAt',
             'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
             'lastMessageAt', 'lastReadAt', 'unreadCount',
             'pinned', 'muted', 'archived', 'updatedAt'
@@ -487,19 +683,16 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action 1: Send / Edit / Unsend Message or Snap summary update
           incoming().diff(existing()).affectedKeys().hasOnly([
             'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'streakCount', 'lastSnapAt',
             'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
             'lastMessageAt', 'updatedAt'
           ])
           ||
-          // Action 2: Customize theme or quick emoji
           incoming().diff(existing()).affectedKeys().hasOnly([
             'themeId', 'quickEmoji', 'updatedAt'
           ])
           ||
-          // Action 3: Group title or membership update (group only)
           (existing().type == 'group'
             && request.auth.uid in incoming().memberIds
             && incoming().diff(existing()).affectedKeys().hasOnly([
@@ -538,12 +731,10 @@ service cloud.firestore {
         && incoming().joinedAt == existing().joinedAt
         && incoming().updatedAt == request.time
         && (
-          // Action 1: Member updates own typing status, read receipt, or profile snapshot
           (memberId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
             'displayName', 'photoURL', 'isTyping', 'typingAt', 'lastReadAt', 'updatedAt'
           ]))
           ||
-          // Action 2: Group member list synced across existing member docs
           (incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt']))
         );
 
@@ -590,20 +781,17 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action 1: Sender edits text
           (existing().senderId == request.auth.uid
             && existing().deleted == false
             && incoming().edited == true
             && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'edited', 'updatedAt']))
           ||
-          // Action 2: Sender unsends (soft delete) message or Snap
           (existing().senderId == request.auth.uid
             && incoming().deleted == true
             && incoming().text == ''
             && incoming().imageData == ''
             && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'imageData', 'deleted', 'updatedAt']))
           ||
-          // Action 3: Any conversation member toggles only their own reaction key
           (incoming().diff(existing()).affectedKeys().hasOnly(['reactions', 'updatedAt'])
             && incoming().reactions.diff(existing().reactions).affectedKeys().hasOnly([request.auth.uid])
             && (!(request.auth.uid in incoming().reactions)
@@ -611,7 +799,6 @@ service cloud.firestore {
                 && incoming().reactions[request.auth.uid].size() >= 1
                 && incoming().reactions[request.auth.uid].size() <= 16)))
           ||
-          // Action 4: Member opens, replays, screenshots, or expires a disappearing Snap (deletes media when closed!)
           (existing().kind == 'snap'
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'snapStatus', 'snapViewedBy', 'snapReplayedBy', 'snapScreenshottedBy', 'imageData', 'updatedAt'
@@ -619,7 +806,6 @@ service cloud.firestore {
             && (incoming().imageData == existing().imageData || incoming().imageData == '')
             && (!('snapViewedBy' in existing()) || incoming().snapViewedBy.hasAll(existing().snapViewedBy)))
           ||
-          // Action 5: Member toggles saving a message in chat
           (incoming().diff(existing()).affectedKeys().hasOnly(['savedBy', 'updatedAt']))
         );
     }
@@ -644,9 +830,23 @@ service cloud.firestore {
         && incoming().authorId == existing().authorId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['viewerIds', 'updatedAt'])
-        && request.auth.uid in incoming().viewerIds
-        && incoming().viewerIds.hasAll(existing().viewerIds);
+        && (
+          (incoming().diff(existing()).affectedKeys().hasOnly(['viewerIds', 'updatedAt'])
+            && request.auth.uid in incoming().viewerIds
+            && incoming().viewerIds.hasAll(existing().viewerIds))
+          ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likedBy', 'updatedAt'])
+            && (
+              (!('likedBy' in existing()) && incoming().likedBy == [request.auth.uid])
+              || (
+                'likedBy' in existing()
+                && (
+                  (!(request.auth.uid in existing().likedBy) && request.auth.uid in incoming().likedBy && incoming().likedBy.hasAll(existing().likedBy) && incoming().likedBy.size() == existing().likedBy.size() + 1)
+                  || (request.auth.uid in existing().likedBy && !(request.auth.uid in incoming().likedBy) && existing().likedBy.hasAll(incoming().likedBy) && existing().likedBy.size() == incoming().likedBy.size() + 1)
+                )
+              )
+            ))
+        );
 
       allow delete: if isVerifiedUser()
         && isValidId(storyId)
@@ -676,19 +876,21 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action 1: Any signed-in user toggles their own like in likedBy
           (incoming().diff(existing()).affectedKeys().hasOnly(['likedBy', 'updatedAt'])
-            && (!(request.auth.uid in existing().likedBy) || !(request.auth.uid in incoming().likedBy) || incoming().likedBy.hasAll(existing().likedBy)))
+            && (
+              (!(request.auth.uid in existing().likedBy) && request.auth.uid in incoming().likedBy && incoming().likedBy.hasAll(existing().likedBy) && incoming().likedBy.size() == existing().likedBy.size() + 1)
+              || (request.auth.uid in existing().likedBy && !(request.auth.uid in incoming().likedBy) && existing().likedBy.hasAll(incoming().likedBy) && existing().likedBy.size() == incoming().likedBy.size() + 1)
+            ))
           ||
-          // Action 2: Viewer increments viewCount by 1
           (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'updatedAt'])
             && incoming().viewCount == existing().viewCount + 1)
           ||
-          // Action 3: Author edits caption or soundTitle
+          (incoming().diff(existing()).affectedKeys().hasOnly(['commentCount', 'updatedAt'])
+            && incoming().commentCount >= 0)
+          ||
           (existing().authorId == request.auth.uid
             && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'soundTitle', 'soundTrackId', 'updatedAt']))
           ||
-          // Action 4: Author publishes video after uploading 720p chunks
           (existing().authorId == request.auth.uid
             && existing().isPublic == false
             && incoming().isPublic == true
@@ -724,6 +926,37 @@ service cloud.firestore {
             || (exists(/databases/$(database)/documents/spotlightVideos/$(videoId))
               && get(/databases/$(database)/documents/spotlightVideos/$(videoId)).data.authorId == request.auth.uid));
       }
+
+      // Subcollection for Spotlight comments
+      match /comments/{commentId} {
+        allow get, list: if isSignedIn()
+          && isValidId(videoId)
+          && exists(/databases/$(database)/documents/spotlightVideos/$(videoId));
+
+        allow create: if isVerifiedUser()
+          && isValidId(videoId)
+          && isValidId(commentId)
+          && isValidSpotlightComment(incoming(), videoId, commentId)
+          && incoming().authorId == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/spotlightVideos/$(videoId));
+
+        allow delete: if isVerifiedUser()
+          && isValidId(videoId)
+          && isValidId(commentId)
+          && (existing().authorId == request.auth.uid
+            || (exists(/databases/$(database)/documents/spotlightVideos/$(videoId))
+              && get(/databases/$(database)/documents/spotlightVideos/$(videoId)).data.authorId == request.auth.uid));
+      }
+    }
+
+    // --- 10. Safety Reports ---
+    match /reports/{reportId} {
+      allow read, update, delete: if false;
+      allow create: if isVerifiedUser()
+        && isValidId(reportId)
+        && isValidUserReport(incoming(), reportId)
+        && incoming().createdAt == request.time;
     }
   }
 }

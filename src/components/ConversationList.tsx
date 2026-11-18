@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   BellOff,
   Camera,
@@ -62,6 +62,7 @@ export function ConversationList({
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<ChatFilter>('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const swipeRowStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
 
   const storyRings = useMemo(() => {
     const now = Date.now();
@@ -508,10 +509,32 @@ export function ConversationList({
 
             const isConfirmingDelete = confirmDeleteId === chat.conversationId;
 
+            const showYellowSnapDot =
+              isSnapLast && !isSelfLast && !snapOpened && !isSaved;
+            const showBlueChatDot =
+              !isSnapLast && hasUnread && !isSaved;
+
             return (
               <div
                 key={chat.conversationId}
-                className={`group w-full min-h-[68px] px-2.5 py-2 rounded-2xl flex items-center gap-2 transition-colors ${
+                onPointerDown={(e) => {
+                  swipeRowStartRef.current = {
+                    id: chat.conversationId,
+                    x: e.clientX,
+                    y: e.clientY,
+                  };
+                }}
+                onPointerUp={(e) => {
+                  const start = swipeRowStartRef.current;
+                  swipeRowStartRef.current = null;
+                  if (!start || start.id !== chat.conversationId) return;
+                  const dx = e.clientX - start.x;
+                  const dy = Math.abs(e.clientY - start.y);
+                  if (dx > 56 && dy < 40) {
+                    onOpenCameraForChat(chat.conversationId);
+                  }
+                }}
+                className={`group w-full min-h-[68px] px-2.5 py-2 rounded-2xl flex items-center gap-2 transition-colors touch-pan-y ${
                   isSelected
                     ? 'bg-[#00A6FF]/10 dark:bg-[#0EA5E9]/20'
                     : 'hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50'
@@ -522,15 +545,29 @@ export function ConversationList({
                   onClick={() => onSelectChat(chat.conversationId)}
                   className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
                 >
-                  <Avatar
-                    name={displayTitle}
-                    photoURL={displayPhoto}
-                    avatarSeed={peer?.avatarSeed}
-                    size="lg"
-                    isOnline={isPeerOnline}
-                    isGroup={chat.type === 'group'}
-                    isSaved={isSaved}
-                  />
+                  <div className="relative shrink-0">
+                    <Avatar
+                      name={displayTitle}
+                      photoURL={displayPhoto}
+                      avatarSeed={peer?.avatarSeed}
+                      size="lg"
+                      isOnline={isPeerOnline}
+                      isGroup={chat.type === 'group'}
+                      isSaved={isSaved}
+                    />
+                    {showYellowSnapDot && (
+                      <span
+                        title="New Snap"
+                        className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#FFFC00] ring-2 ring-white dark:ring-[#121824] shadow-xs"
+                      />
+                    )}
+                    {!showYellowSnapDot && showBlueChatDot && (
+                      <span
+                        title="New Chat"
+                        className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#00A6FF] ring-2 ring-white dark:ring-[#121824]"
+                      />
+                    )}
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -570,6 +607,12 @@ export function ConversationList({
                       {snapStatusNode}
 
                       <div className="flex items-center gap-1 shrink-0">
+                        {showYellowSnapDot && (
+                          <span className="w-2 h-2 rounded-full bg-[#FFFC00] ring-1 ring-slate-900/20" />
+                        )}
+                        {!showYellowSnapDot && showBlueChatDot && (
+                          <span className="w-2 h-2 rounded-full bg-[#00A6FF]" />
+                        )}
                         {chat.muted && <BellOff className="w-3 h-3 text-slate-400" />}
                         {chat.pinned && <Pin className="w-3 h-3 text-slate-400" />}
                       </div>

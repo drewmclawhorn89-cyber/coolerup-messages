@@ -1,15 +1,19 @@
 import { Timestamp } from 'firebase/firestore';
 import type {
+  AppNotification,
+  AppNotificationType,
   ChatThemeId,
   Conversation,
   ConversationMember,
   Friendship,
   MediaType,
+  MemoryItem,
   Message,
   MessageKind,
   PrivateUserInfo,
   PublicProfile,
   SnapStatus,
+  SpotlightComment,
   SpotlightVideo,
   Story,
   UserChatIndex,
@@ -795,4 +799,216 @@ export async function updateLocalAppearance(
 ): Promise<void> {
   await updateLocalConversation(conversationId, updates);
   await updateLocalUserChatIndex(uid, conversationId, updates);
+}
+
+export async function updateLocalPrivateInfo(
+  uid: string,
+  updates: Partial<PrivateUserInfo>
+): Promise<void> {
+  const current = await cacheGet<PrivateUserInfo>(`private_${uid}`);
+  if (current) {
+    await saveLocalPrivateInfo({ ...current, ...updates, updatedAt: Timestamp.now() });
+  }
+}
+
+export async function clearLocalChatMessages(uid: string, conversationId: string): Promise<void> {
+  const now = Timestamp.now();
+  await updateLocalUserChatIndex(uid, conversationId, { clearedAt: now });
+}
+
+export async function addLocalMemoryItem(params: {
+  userId: string;
+  mediaUrl: string;
+  mediaType: 'photo' | 'video';
+  caption: string;
+  source: 'snap' | 'camera_roll' | 'spotlight';
+  locked?: boolean;
+}): Promise<string> {
+  const now = Timestamp.now();
+  const id = makeLocalId('mem');
+  const item: MemoryItem = {
+    id,
+    userId: params.userId,
+    mediaUrl: params.mediaUrl,
+    mediaType: params.mediaType,
+    caption: params.caption.trim().slice(0, 200),
+    source: params.source,
+    locked: Boolean(params.locked),
+    savedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const existing = (await cacheGet<MemoryItem[]>(`memories_${params.userId}`)) || [];
+  await cacheSet(`memories_${params.userId}`, [item, ...existing], true);
+  return id;
+}
+
+export async function toggleLocalMemoryLock(
+  userId: string,
+  memoryId: string,
+  locked: boolean
+): Promise<void> {
+  const existing = (await cacheGet<MemoryItem[]>(`memories_${userId}`)) || [];
+  await cacheSet(
+    `memories_${userId}`,
+    existing.map((m) => (m.id === memoryId ? { ...m, locked, updatedAt: Timestamp.now() } : m)),
+    true
+  );
+}
+
+export async function deleteLocalMemoryItem(userId: string, memoryId: string): Promise<void> {
+  const existing = (await cacheGet<MemoryItem[]>(`memories_${userId}`)) || [];
+  await cacheSet(
+    `memories_${userId}`,
+    existing.filter((m) => m.id !== memoryId),
+    true
+  );
+}
+
+export async function addLocalNotification(params: {
+  userId: string;
+  type: AppNotificationType;
+  fromUserId: string;
+  fromUserName: string;
+  fromPhotoURL: string;
+  message: string;
+}): Promise<void> {
+  const now = Timestamp.now();
+  const item: AppNotification = {
+    id: makeLocalId('notif'),
+    userId: params.userId,
+    type: params.type,
+    fromUserId: params.fromUserId,
+    fromUserName: params.fromUserName,
+    fromPhotoURL: params.fromPhotoURL,
+    message: params.message.slice(0, 240),
+    read: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const existing = (await cacheGet<AppNotification[]>(`notifications_${params.userId}`)) || [];
+  await cacheSet(`notifications_${params.userId}`, [item, ...existing].slice(0, 80), true);
+}
+
+export async function markLocalNotificationRead(userId: string, id: string): Promise<void> {
+  const existing = (await cacheGet<AppNotification[]>(`notifications_${userId}`)) || [];
+  await cacheSet(
+    `notifications_${userId}`,
+    existing.map((n) => (n.id === id ? { ...n, read: true, updatedAt: Timestamp.now() } : n)),
+    true
+  );
+}
+
+export async function markAllLocalNotificationsRead(userId: string): Promise<void> {
+  const existing = (await cacheGet<AppNotification[]>(`notifications_${userId}`)) || [];
+  await cacheSet(
+    `notifications_${userId}`,
+    existing.map((n) => ({ ...n, read: true, updatedAt: Timestamp.now() })),
+    true
+  );
+}
+
+export async function deleteLocalNotification(userId: string, id: string): Promise<void> {
+  const existing = (await cacheGet<AppNotification[]>(`notifications_${userId}`)) || [];
+  await cacheSet(
+    `notifications_${userId}`,
+    existing.filter((n) => n.id !== id),
+    true
+  );
+}
+
+export async function addLocalSpotlightComment(params: {
+  videoId: string;
+  author: PublicProfile;
+  text: string;
+}): Promise<string> {
+  const now = Timestamp.now();
+  const id = makeLocalId('cmt');
+  const comment: SpotlightComment = {
+    id,
+    videoId: params.videoId,
+    authorId: params.author.uid,
+    authorName: params.author.displayName,
+    authorHandle: params.author.handle,
+    authorPhotoURL: params.author.photoURL,
+    text: params.text.trim().slice(0, 500),
+    createdAt: now,
+  };
+  const existing = (await cacheGet<SpotlightComment[]>(`comments_${params.videoId}`)) || [];
+  await cacheSet(`comments_${params.videoId}`, [...existing, comment], true);
+  await updateLocalSpotlightVideo(params.videoId, (v) => ({
+    ...v,
+    commentCount: (v.commentCount || 0) + 1,
+  }));
+  return id;
+}
+
+export async function deleteLocalSpotlightComment(
+  videoId: string,
+  commentId: string
+): Promise<void> {
+  const existing = (await cacheGet<SpotlightComment[]>(`comments_${videoId}`)) || [];
+  await cacheSet(
+    `comments_${videoId}`,
+    existing.filter((c) => c.id !== commentId),
+    true
+  );
+  await updateLocalSpotlightVideo(videoId, (v) => ({
+    ...v,
+    commentCount: Math.max(0, (v.commentCount || 0) - 1),
+  }));
+}
+
+export async function toggleLocalStoryLike(storyId: string, uid: string): Promise<void> {
+  const stories = (await cacheGet<Story[]>('stories')) || [];
+  await cacheSet(
+    'stories',
+    stories.map((s) => {
+      if (s.id !== storyId) return s;
+      const liked = (s.likedBy || []).includes(uid);
+      return {
+        ...s,
+        likedBy: liked ? (s.likedBy || []).filter((id) => id !== uid) : [...(s.likedBy || []), uid],
+        updatedAt: Timestamp.now(),
+      };
+    }),
+    true
+  );
+}
+
+export async function toggleLocalFollowCreator(meUid: string, targetUid: string): Promise<void> {
+  const me = await cacheGet<PublicProfile>(`profile_${meUid}`);
+  if (me) {
+    const following = me.following || [];
+    const isFollowing = following.includes(targetUid);
+    await saveLocalProfile({
+      ...me,
+      following: isFollowing ? following.filter((id) => id !== targetUid) : [...following, targetUid],
+    });
+  }
+  const peer = await cacheGet<PublicProfile>(`profile_${targetUid}`);
+  if (peer) {
+    const followers = peer.followers || [];
+    const hasMe = followers.includes(meUid);
+    await saveLocalProfile({
+      ...peer,
+      followers: hasMe ? followers.filter((id) => id !== meUid) : [...followers, meUid],
+    });
+  }
+}
+
+export async function clearAllLocalCache(): Promise<void> {
+  memoryCache.clear();
+  const db = await openLocalDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
 }

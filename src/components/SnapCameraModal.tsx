@@ -1,18 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Bell,
+  Bookmark,
   Camera,
   Check,
+  Crop,
   Film,
+  FolderHeart,
   ImagePlus,
+  MapPin,
   Music2,
   Pencil,
   RefreshCw,
+  Search,
   Send,
+  Settings,
+  Smile,
   SmilePlus,
   Sparkles,
+  SunMedium,
   Timer,
   Type,
   Undo2,
+  UserPlus,
   Video,
   Volume2,
   VolumeX,
@@ -39,22 +49,29 @@ import { Avatar } from './Avatar';
 interface LensOption {
   id: string;
   label: string;
+  badge: string;
   cssFilter: string;
+  overlayType?: 'dog' | 'crown' | 'funny' | 'cartoon';
 }
 
 const LENSES: LensOption[] = [
-  { id: 'normal', label: 'Natural', cssFilter: 'none' },
-  { id: 'warm', label: 'Golden', cssFilter: 'sepia(0.28) saturate(1.35) brightness(1.04)' },
-  { id: 'cool', label: 'CoolerUp', cssFilter: 'hue-rotate(15deg) saturate(1.2) contrast(1.06)' },
-  { id: 'noir', label: 'Noir', cssFilter: 'grayscale(1) contrast(1.25)' },
-  { id: 'retro', label: 'Film', cssFilter: 'sepia(0.45) contrast(1.1) brightness(0.95)' },
-  { id: 'vivid', label: 'Vivid', cssFilter: 'saturate(1.6) contrast(1.12)' },
+  { id: 'normal', label: 'Natural', badge: '✨', cssFilter: 'none' },
+  { id: 'dog', label: 'Dog Ears', badge: '🐶', cssFilter: 'saturate(1.12) brightness(1.03)', overlayType: 'dog' },
+  { id: 'crown', label: 'Flower Crown', badge: '🌸', cssFilter: 'brightness(1.06) saturate(1.18)', overlayType: 'crown' },
+  { id: 'funny', label: 'Funny Face', badge: '🤪', cssFilter: 'contrast(1.18) saturate(1.3)', overlayType: 'funny' },
+  { id: 'beauty', label: 'Beauty Smooth', badge: '💫', cssFilter: 'brightness(1.08) contrast(0.94) saturate(1.1) blur(0.4px)' },
+  { id: 'bw', label: 'Black & White', badge: '🖤', cssFilter: 'grayscale(1) contrast(1.25)' },
+  { id: 'vintage', label: 'Vintage', badge: '🎞️', cssFilter: 'sepia(0.55) contrast(1.1) brightness(0.95)' },
+  { id: 'cartoon', label: 'Cartoon', badge: '🎨', cssFilter: 'saturate(1.85) contrast(1.35) brightness(1.04)', overlayType: 'cartoon' },
 ];
 
 const PEN_COLORS = ['#FFFFFF', '#FFFC00', '#00A6FF', '#F43F5E', '#10B981'];
-const STICKER_OPTIONS = ['🔥', '😂', '❤️', '👻', '⚡', '🎉', '✨', '😎', '💯', '☕'];
-const VIEW_TIMER_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0] as const; // 0 => infinite (99)
+const STICKER_OPTIONS = ['🔥', '😂', '❤️', '👻', '⚡', '🎉', '✨', '😎', '💯', '☕', '🐶', '🌸', '🌈', '🥳'];
+const GIF_BADGE_STICKERS = ['🔥 VIBES', '😂 LMAO', '✨ SLAY', '⚡ SNAP!', '🎉 PARTY', '💖 LOVE U'];
+const VIEW_TIMER_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0] as const; // 0 => infinite
 const CAPTURE_TIMER_OPTIONS = [0, 3, 10] as const;
+const CROP_RATIOS = ['original', '9:16', '1:1', '4:3'] as const;
+type CropRatio = (typeof CROP_RATIOS)[number];
 
 interface Stroke {
   color: string;
@@ -63,18 +80,32 @@ interface Stroke {
 
 interface PlacedSticker {
   id: string;
-  emoji: string;
+  content: string;
+  kind: 'emoji' | 'badge';
   x: number; // 0..1
   y: number; // 0..1
 }
 
 interface SnapCameraModalProps {
+  embedded?: boolean;
   currentUser: PublicProfile;
   chats: UserChatIndex[];
   profiles: PublicProfile[];
   preselectedConversationId?: string | null;
   initialMode?: 'snap' | 'story' | 'spotlight';
   initialCaptureKind?: 'photo' | 'video';
+  unreadNotificationsCount?: number;
+  onOpenProfile?: () => void;
+  onOpenSearch?: () => void;
+  onOpenAddFriend?: () => void;
+  onOpenNotifications?: () => void;
+  onOpenSettings?: () => void;
+  onOpenMemories?: () => void;
+  onSaveToMemory?: (params: {
+    mediaUrl: string;
+    mediaType: 'photo' | 'video';
+    caption: string;
+  }) => Promise<void>;
   onClose: () => void;
   onSendSnapToConversations: (params: {
     conversationIds: string[];
@@ -90,13 +121,70 @@ interface SnapCameraModalProps {
   }) => Promise<void>;
 }
 
+function drawLensOverlayOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  overlayType: LensOption['overlayType'],
+  w: number,
+  h: number
+) {
+  if (!overlayType) return;
+  ctx.save();
+  if (overlayType === 'dog') {
+    ctx.font = `${Math.round(w * 0.19)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🐶', w * 0.5, h * 0.28);
+    ctx.font = `${Math.round(w * 0.14)}px system-ui, sans-serif`;
+    ctx.fillText('🐾', w * 0.18, h * 0.8);
+    ctx.fillText('🐾', w * 0.82, h * 0.8);
+  } else if (overlayType === 'crown') {
+    const crownY = h * 0.2;
+    const items = ['🌸', '🌺', '🌼', '🌻', '🌸'];
+    ctx.font = `${Math.round(w * 0.1)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    items.forEach((em, idx) => {
+      const px = w * (0.26 + idx * 0.12);
+      const arc = Math.abs(idx - 2) * (h * 0.015);
+      ctx.fillText(em, px, crownY + arc);
+    });
+  } else if (overlayType === 'funny') {
+    ctx.font = `${Math.round(w * 0.15)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👀', w * 0.5, h * 0.3);
+    ctx.fillText('😜', w * 0.5, h * 0.62);
+  } else if (overlayType === 'cartoon') {
+    ctx.strokeStyle = '#FFFC00';
+    ctx.lineWidth = Math.max(8, Math.round(w * 0.02));
+    ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, w - ctx.lineWidth, h - ctx.lineWidth);
+    ctx.font = `900 ${Math.round(w * 0.08)}px "Plus Jakarta Sans", sans-serif`;
+    ctx.fillStyle = '#FFFC00';
+    ctx.strokeStyle = '#0F172A';
+    ctx.lineWidth = 5;
+    ctx.textAlign = 'left';
+    ctx.strokeText('POW!', w * 0.08, h * 0.15);
+    ctx.fillText('POW!', w * 0.08, h * 0.15);
+  }
+  ctx.restore();
+}
+
 export function SnapCameraModal({
+  embedded = false,
   currentUser,
   chats,
   profiles,
   preselectedConversationId = null,
   initialMode = 'snap',
   initialCaptureKind,
+  unreadNotificationsCount = 0,
+  onOpenProfile,
+  onOpenSearch,
+  onOpenAddFriend,
+  onOpenNotifications,
+  onOpenSettings,
+  onOpenMemories,
+  onSaveToMemory,
   onClose,
   onSendSnapToConversations,
 }: SnapCameraModalProps) {
@@ -108,6 +196,8 @@ export function SnapCameraModal({
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const draggingStickerRef = useRef<string | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdStartedRecordingRef = useRef(false);
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flashOn, setFlashOn] = useState(false);
@@ -124,6 +214,7 @@ export function SnapCameraModal({
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [selectedLens, setSelectedLens] = useState<LensOption>(LENSES[0]);
+  const [showLensesRow, setShowLensesRow] = useState(true);
 
   const [capturedMedia, setCapturedMedia] = useState<{
     dataUrl: string;
@@ -140,7 +231,9 @@ export function SnapCameraModal({
   const activeStrokeRef = useRef<Stroke | null>(null);
 
   const [showStickerBar, setShowStickerBar] = useState(false);
+  const [stickerTab, setStickerTab] = useState<'emoji' | 'gif' | 'info'>('emoji');
   const [stickers, setStickers] = useState<PlacedSticker[]>([]);
+  const [cropRatio, setCropRatio] = useState<CropRatio>('original');
 
   const [durationSec, setDurationSec] = useState<number>(5);
   const [showSendPicker, setShowSendPicker] = useState(false);
@@ -154,6 +247,8 @@ export function SnapCameraModal({
   );
   const [selectedPeerUids, setSelectedPeerUids] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
+  const [savingMemory, setSavingMemory] = useState(false);
+  const [savedToMemoryFeedback, setSavedToMemoryFeedback] = useState(false);
   const [sendError, setSendError] = useState('');
 
   // Start/restart camera stream
@@ -188,13 +283,9 @@ export function SnapCameraModal({
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: videoConstraint,
-            audio:
-              captureKind === 'video'
-                ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-                : false,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
           });
         } catch {
-          // Fallback to video-only if microphone permission was denied
           stream = await navigator.mediaDevices.getUserMedia({
             video: videoConstraint,
             audio: false,
@@ -226,9 +317,9 @@ export function SnapCameraModal({
         streamRef.current = null;
       }
     };
-  }, [facingMode, capturedMedia, captureKind]);
+  }, [facingMode, capturedMedia]);
 
-  // Imperatively sync muted & volume on captured video preview and fallback safely if autoplay blocked
+  // Sync muted & volume on captured video preview
   useEffect(() => {
     const el = previewVideoRef.current;
     if (!el || capturedMedia?.mediaType !== 'video') return;
@@ -247,7 +338,7 @@ export function SnapCameraModal({
     };
   }, [capturedMedia, previewMuted]);
 
-  // Sync background music track preview when reviewing captured video
+  // Sync background music track preview
   useEffect(() => {
     if (
       capturedMedia?.mediaType === 'video' &&
@@ -264,7 +355,7 @@ export function SnapCameraModal({
     };
   }, [capturedMedia, previewMuted, showSendPicker, selectedSoundTrackId]);
 
-  // Try applying hardware torch constraint when flash toggles
+  // Try applying torch constraint when flash toggles
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()?.[0];
     if (!track || typeof track.applyConstraints !== 'function') return;
@@ -291,7 +382,7 @@ export function SnapCameraModal({
     return () => clearTimeout(timer);
   });
 
-  // Recording elapsed seconds timer (up to 12 seconds at 720p HD with audio)
+  // Recording elapsed seconds timer up to 60 seconds
   useEffect(() => {
     if (!isRecording) {
       setRecordingSec(0);
@@ -299,9 +390,9 @@ export function SnapCameraModal({
     }
     const id = setInterval(() => {
       setRecordingSec((prev) => {
-        if (prev >= 11) {
+        if (prev >= LIMITS.MAX_CAMERA_VIDEO_SEC - 1) {
           recorderRef.current?.stop();
-          return 12;
+          return LIMITS.MAX_CAMERA_VIDEO_SEC;
         }
         return prev + 1;
       });
@@ -358,14 +449,20 @@ export function SnapCameraModal({
     const ctx = offscreen.getContext('2d');
     if (!ctx) return;
 
+    ctx.save();
     ctx.filter = selectedLens.cssFilter;
     if (facingMode === 'user') {
       ctx.translate(w, 0);
       ctx.scale(-1, 1);
     }
     ctx.drawImage(video, 0, 0, w, h);
+    ctx.restore();
+
+    drawLensOverlayOnCanvas(ctx, selectedLens.overlayType, w, h);
 
     setPhotoDims({ w, h });
+    setCropRatio('original');
+    setSavedToMemoryFeedback(false);
     setCapturedMedia({
       dataUrl: offscreen.toDataURL('image/jpeg', 0.92),
       mediaType: 'photo',
@@ -391,8 +488,8 @@ export function SnapCameraModal({
 
     const recorder = new MediaRecorder(stream, {
       ...(mimeType ? { mimeType } : {}),
-      videoBitsPerSecond: 1_400_000,
-      audioBitsPerSecond: 128_000,
+      videoBitsPerSecond: 1_100_000,
+      audioBitsPerSecond: 96_000,
     });
 
     recorder.ondataavailable = (ev) => {
@@ -413,6 +510,7 @@ export function SnapCameraModal({
           '720p Video Snap',
           LIMITS.SPOTLIGHT_TOTAL_MAX
         );
+        setSavedToMemoryFeedback(false);
         setCapturedMedia({ dataUrl, mediaType: 'video' });
       } catch (err) {
         setSendError(err instanceof Error ? err.message : 'Video Snap too large.');
@@ -424,9 +522,32 @@ export function SnapCameraModal({
     setIsRecording(true);
   };
 
-  const handleShutterClick = () => {
-    if (!cameraReady) return;
+  // Hold-to-record up to 60s OR tap to capture photo
+  const handleShutterPointerDown = () => {
+    if (!cameraReady || isRecording) return;
     void resumeSpotlightAudioContext();
+    holdStartedRecordingRef.current = false;
+    holdTimerRef.current = setTimeout(() => {
+      holdStartedRecordingRef.current = true;
+      setCaptureKind('video');
+      executeVideoToggle();
+    }, 340);
+  };
+
+  const handleShutterPointerUp = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdStartedRecordingRef.current) {
+      holdStartedRecordingRef.current = false;
+      if (isRecording) {
+        executeVideoToggle();
+      }
+      return;
+    }
+    // Short tap
+    if (!cameraReady) return;
     if (isRecording) {
       executeVideoToggle();
       return;
@@ -453,6 +574,7 @@ export function SnapCameraModal({
         setCapturedMedia({ dataUrl: videoUrl, mediaType: 'video' });
         setStrokes([]);
         setStickers([]);
+        setSavedToMemoryFeedback(false);
       } catch (err) {
         setCameraError(err instanceof Error ? err.message : 'Unable to load selected video.');
       }
@@ -479,6 +601,8 @@ export function SnapCameraModal({
       ctx.filter = selectedLens.cssFilter;
       ctx.drawImage(img, 0, 0, w, h);
       setPhotoDims({ w, h });
+      setCropRatio('original');
+      setSavedToMemoryFeedback(false);
       setCapturedMedia({
         dataUrl: offscreen.toDataURL('image/jpeg', 0.92),
         mediaType: 'photo',
@@ -518,17 +642,29 @@ export function SnapCameraModal({
     activeStrokeRef.current = null;
   };
 
-  const handleAddSticker = (emoji: string) => {
+  const handleAddSticker = (content: string, kind: 'emoji' | 'badge') => {
     setStickers((prev) => [
       ...prev,
       {
         id: `${Date.now()}_${Math.random()}`,
-        emoji,
+        content,
+        kind,
         x: 0.35 + (prev.length % 4) * 0.08,
         y: 0.32 + Math.floor(prev.length / 4) * 0.1,
       },
     ]);
     setShowStickerBar(false);
+  };
+
+  const addTimeWeatherSticker = () => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    handleAddSticker(`☀️ 72°F · ${timeStr}`, 'badge');
+  };
+
+  const addLocationSticker = () => {
+    const label = currentUser.locationLabel || 'Nearby · Snap Map';
+    handleAddSticker(`📍 ${label}`, 'badge');
   };
 
   const flattenSnapToDataUrl = async (): Promise<string> => {
@@ -544,13 +680,30 @@ export function SnapCameraModal({
       el.src = capturedMedia.dataUrl;
     });
 
+    // Apply aspect crop if chosen
+    let sx = 0;
+    let sy = 0;
+    let sw = photoDims.w;
+    let sh = photoDims.h;
+    if (cropRatio !== 'original') {
+      const targetRatio = cropRatio === '9:16' ? 9 / 16 : cropRatio === '1:1' ? 1 : 4 / 3;
+      const srcRatio = sw / sh;
+      if (srcRatio > targetRatio) {
+        sw = Math.round(sh * targetRatio);
+        sx = Math.round((photoDims.w - sw) / 2);
+      } else {
+        sh = Math.round(sw / targetRatio);
+        sy = Math.round((photoDims.h - sh) / 2);
+      }
+    }
+
     const out = document.createElement('canvas');
-    out.width = photoDims.w;
-    out.height = photoDims.h;
+    out.width = sw;
+    out.height = sh;
     const ctx = out.getContext('2d');
     if (!ctx) throw new Error('Canvas unavailable.');
 
-    ctx.drawImage(img, 0, 0, out.width, out.height);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
     // Draw strokes
     ctx.lineCap = 'round';
@@ -567,14 +720,31 @@ export function SnapCameraModal({
       ctx.stroke();
     }
 
-    // Bake Stickers
-    if (stickers.length > 0) {
-      const stickerPx = Math.max(36, Math.round(out.width * 0.1));
-      ctx.font = `${stickerPx}px system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      for (const st of stickers) {
-        ctx.fillText(st.emoji, st.x * out.width, st.y * out.height);
+    // Bake Stickers & Badges
+    for (const st of stickers) {
+      if (st.kind === 'emoji') {
+        const stickerPx = Math.max(36, Math.round(out.width * 0.1));
+        ctx.font = `${stickerPx}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(st.content, st.x * out.width, st.y * out.height);
+      } else {
+        const badgeFontPx = Math.max(16, Math.round(out.width * 0.038));
+        ctx.font = `700 ${badgeFontPx}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        const metrics = ctx.measureText(st.content);
+        const padX = badgeFontPx * 0.8;
+        const boxW = Math.min(out.width - 24, metrics.width + padX * 2);
+        const boxH = badgeFontPx * 1.9;
+        const cx = st.x * out.width;
+        const cy = st.y * out.height;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
+        ctx.beginPath();
+        ctx.roundRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH, 12);
+        ctx.fill();
+        ctx.fillStyle = '#FFFC00';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(st.content, cx, cy);
       }
     }
 
@@ -596,10 +766,7 @@ export function SnapCameraModal({
     return compressCanvasToDataUrl(out);
   };
 
-  const activeChats = useMemo(
-    () => chats.filter((c) => !c.archived),
-    [chats]
-  );
+  const activeChats = useMemo(() => chats.filter((c) => !c.archived), [chats]);
 
   const otherProfiles = useMemo(() => {
     const existingPeerUids = new Set(
@@ -614,6 +781,25 @@ export function SnapCameraModal({
     () => SPOTLIGHT_SOUND_TRACKS.find((t) => t.id === selectedSoundTrackId) || SPOTLIGHT_SOUND_TRACKS[0],
     [selectedSoundTrackId]
   );
+
+  const handleSaveMemoryClick = async () => {
+    if (!onSaveToMemory || !capturedMedia || savingMemory) return;
+    setSavingMemory(true);
+    setSendError('');
+    try {
+      const dataUrl = await flattenSnapToDataUrl();
+      await onSaveToMemory({
+        mediaUrl: dataUrl,
+        mediaType: capturedMedia.mediaType,
+        caption: caption.trim(),
+      });
+      setSavedToMemoryFeedback(true);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to save to Memories.');
+    } finally {
+      setSavingMemory(false);
+    }
+  };
 
   const handleConfirmSend = async () => {
     if (sending) return;
@@ -644,7 +830,15 @@ export function SnapCameraModal({
             ? `Original Sound · ${currentUser.displayName.split(' ')[0]}`
             : selectedTrackMeta.title,
       });
-      onClose();
+      if (embedded) {
+        setCapturedMedia(null);
+        setShowSendPicker(false);
+        setStrokes([]);
+        setStickers([]);
+        setCaption('');
+      } else {
+        onClose();
+      }
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Unable to send Snap.');
     } finally {
@@ -652,187 +846,330 @@ export function SnapCameraModal({
     }
   };
 
+  const formatRecTime = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex items-center justify-center sm:p-4">
-      <div className="relative w-full h-full sm:max-w-[440px] sm:max-h-[840px] sm:rounded-3xl overflow-hidden bg-[#0B0F17] border border-slate-800 flex flex-col">
-        {flashPulse && (
-          <div className="absolute inset-0 z-40 bg-white pointer-events-none" />
-        )}
+    <div
+      className={
+        embedded
+          ? 'relative flex-1 w-full h-full bg-black flex items-center justify-center overflow-hidden pb-14 md:pb-0'
+          : 'fixed inset-0 z-50 bg-black flex items-center justify-center sm:p-4'
+      }
+    >
+      <div
+        className={
+          embedded
+            ? 'relative w-full h-full bg-[#0B0F17] flex flex-col overflow-hidden'
+            : 'relative w-full h-full sm:max-w-[440px] sm:max-h-[840px] sm:rounded-3xl overflow-hidden bg-[#0B0F17] border border-slate-800 flex flex-col'
+        }
+      >
+        {flashPulse && <div className="absolute inset-0 z-40 bg-white pointer-events-none" />}
 
-        {/* Top Controls Overlay */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between bg-gradient-to-b from-black/75 to-transparent">
-          <button
-            type="button"
-            onClick={() => {
-              if (showSendPicker) {
-                setShowSendPicker(false);
-              } else if (capturedMedia) {
-                setCapturedMedia(null);
-                setStrokes([]);
-                setStickers([]);
-                setCaption('');
-                setShowCaptionInput(false);
-                setSelectedSoundTrackId('original');
-                setShowSoundPicker(false);
-                setPreviewMuted(false);
-                setSendError('');
-              } else {
-                onClose();
-              }
-            }}
-            aria-label="Close or retake"
-            className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-
+        {/* Top Bar Overlay */}
+        <div className="absolute top-0 left-0 right-0 z-20 p-3 sm:p-4 flex items-center justify-between bg-gradient-to-b from-black/75 to-transparent">
           {!capturedMedia ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const idx = CAPTURE_TIMER_OPTIONS.indexOf(
-                    captureTimerSec as (typeof CAPTURE_TIMER_OPTIONS)[number]
-                  );
-                  setCaptureTimerSec(CAPTURE_TIMER_OPTIONS[(idx + 1) % CAPTURE_TIMER_OPTIONS.length]);
-                }}
-                title="Capture Timer"
-                className={`h-10 px-3 rounded-full text-xs font-mono-tabular font-semibold flex items-center gap-1 backdrop-blur-xs cursor-pointer ${
-                  captureTimerSec > 0 ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
-                }`}
-              >
-                <Timer className="w-4 h-4" />
-                <span>{captureTimerSec > 0 ? `${captureTimerSec}s` : 'Timer'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFlashOn((v) => !v)}
-                title="Flash"
-                aria-label="Toggle flash"
-                className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
-                  flashOn ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
-                }`}
-              >
-                <Zap className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFacingMode((m) => (m === 'user' ? 'environment' : 'user'))}
-                title="Flip camera"
-                aria-label="Flip camera"
-                className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setDrawingMode(false);
-                  setShowCaptionInput((v) => !v);
-                }}
-                title="Add caption"
-                className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
-                  showCaptionInput || caption ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
-                }`}
-              >
-                <Type className="w-4 h-4" />
-              </button>
-              {capturedMedia.mediaType === 'photo' && (
-                <>
+            embedded ? (
+              <>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowStickerBar(false);
-                      setDrawingMode((v) => !v);
-                    }}
-                    title="Draw"
-                    className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
-                      drawingMode ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
-                    }`}
+                    onClick={onOpenProfile}
+                    aria-label="Open profile"
+                    className="rounded-full p-0.5 bg-[#FFFC00] shadow-xs cursor-pointer"
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Avatar
+                      name={currentUser.displayName}
+                      photoURL={currentUser.photoURL}
+                      avatarSeed={currentUser.avatarSeed}
+                      size="sm"
+                    />
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setDrawingMode(false);
-                      setShowStickerBar((v) => !v);
-                    }}
-                    title="Stickers"
-                    className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
-                      showStickerBar ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
-                    }`}
+                    onClick={onOpenSearch}
+                    aria-label="Search friends"
+                    className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
                   >
-                    <SmilePlus className="w-4 h-4" />
+                    <Search className="w-4 h-4" />
                   </button>
-                </>
-              )}
-              {strokes.length > 0 && (
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFacingMode((m) => (m === 'user' ? 'environment' : 'user'))}
+                    aria-label="Flip camera"
+                    className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onOpenAddFriend}
+                    aria-label="Add friends"
+                    className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onOpenNotifications}
+                    aria-label="Notifications"
+                    className="relative w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {unreadNotificationsCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#FFFC00] text-slate-950 text-[10px] font-bold flex items-center justify-center">
+                        {unreadNotificationsCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onOpenSettings}
+                    aria-label="Settings"
+                    className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
                 <button
                   type="button"
-                  onClick={() => setStrokes((prev) => prev.slice(0, -1))}
-                  title="Undo drawing"
-                  className="w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
+                  onClick={onClose}
+                  aria-label="Close camera"
+                  className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
                 >
-                  <Undo2 className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
-              )}
-              {capturedMedia.mediaType === 'video' && (
-                <>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      void resumeSpotlightAudioContext();
-                      setPreviewMuted((m) => !m);
-                    }}
-                    title={previewMuted ? 'Unmute video & music' : 'Mute preview'}
-                    className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
-                      !previewMuted ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
-                    }`}
+                    onClick={() => setFacingMode((m) => (m === 'user' ? 'environment' : 'user'))}
+                    aria-label="Flip camera"
+                    className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
                   >
-                    {previewMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    <RefreshCw className="w-4 h-4" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void resumeSpotlightAudioContext();
-                      setShowCaptionInput(false);
-                      setShowSoundPicker((v) => !v);
-                    }}
-                    title="Choose Music Track"
-                    className={`h-9 px-2.5 rounded-full flex items-center gap-1 text-xs font-semibold backdrop-blur-xs cursor-pointer ${
-                      showSoundPicker || selectedSoundTrackId !== 'original'
-                        ? 'bg-[#FFFC00] text-slate-950'
-                        : 'bg-black/50 text-white'
-                    }`}
-                  >
-                    <Music2 className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Music</span>
-                  </button>
-                </>
-              )}
+                </div>
+              </>
+            )
+          ) : (
+            <>
               <button
                 type="button"
                 onClick={() => {
-                  const idx = VIEW_TIMER_OPTIONS.indexOf(
-                    durationSec as (typeof VIEW_TIMER_OPTIONS)[number]
-                  );
-                  setDurationSec(VIEW_TIMER_OPTIONS[(idx + 1) % VIEW_TIMER_OPTIONS.length]);
+                  if (showSendPicker) {
+                    setShowSendPicker(false);
+                  } else {
+                    setCapturedMedia(null);
+                    setStrokes([]);
+                    setStickers([]);
+                    setCaption('');
+                    setShowCaptionInput(false);
+                    setSelectedSoundTrackId('original');
+                    setShowSoundPicker(false);
+                    setPreviewMuted(false);
+                    setSendError('');
+                  }
                 }}
-                title="View duration (1-10s or infinite)"
-                className="h-9 px-3 rounded-full bg-black/55 text-white text-xs font-mono-tabular font-semibold flex items-center gap-1 backdrop-blur-xs cursor-pointer"
+                aria-label="Retake or close editor"
+                className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
               >
-                <Timer className="w-3.5 h-3.5 text-[#FFFC00]" />
-                <span>{durationSec === 0 ? '∞' : `${durationSec}s`}</span>
+                <X className="w-5 h-5" />
               </button>
-            </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDrawingMode(false);
+                    setShowStickerBar(false);
+                    setShowCaptionInput((v) => !v);
+                  }}
+                  title="Text caption"
+                  className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
+                    showCaptionInput || caption ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/55 text-white'
+                  }`}
+                >
+                  <Type className="w-4 h-4" />
+                </button>
+                {capturedMedia.mediaType === 'photo' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowStickerBar(false);
+                        setDrawingMode((v) => !v);
+                      }}
+                      title="Draw"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
+                        drawingMode ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/55 text-white'
+                      }`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrawingMode(false);
+                        setShowStickerBar((v) => !v);
+                      }}
+                      title="Stickers, GIFs, Location & Weather"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
+                        showStickerBar ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/55 text-white'
+                      }`}
+                    >
+                      <SmilePlus className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const idx = CROP_RATIOS.indexOf(cropRatio);
+                        setCropRatio(CROP_RATIOS[(idx + 1) % CROP_RATIOS.length]);
+                      }}
+                      title="Crop ratio"
+                      className={`h-9 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold backdrop-blur-xs cursor-pointer ${
+                        cropRatio !== 'original' ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/55 text-white'
+                      }`}
+                    >
+                      <Crop className="w-3.5 h-3.5" />
+                      <span>{cropRatio === 'original' ? 'Crop' : cropRatio}</span>
+                    </button>
+                  </>
+                )}
+                {strokes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStrokes((prev) => prev.slice(0, -1))}
+                    title="Undo drawing"
+                    className="w-9 h-9 rounded-full bg-black/55 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
+                  >
+                    <Undo2 className="w-4 h-4" />
+                  </button>
+                )}
+                {capturedMedia.mediaType === 'video' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void resumeSpotlightAudioContext();
+                        setPreviewMuted((m) => !m);
+                      }}
+                      title={previewMuted ? 'Unmute video' : 'Mute preview'}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
+                        !previewMuted ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/55 text-white'
+                      }`}
+                    >
+                      {previewMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void resumeSpotlightAudioContext();
+                        setShowCaptionInput(false);
+                        setShowSoundPicker((v) => !v);
+                      }}
+                      title="Add Music"
+                      className={`h-9 px-2.5 rounded-full flex items-center gap-1 text-xs font-semibold backdrop-blur-xs cursor-pointer ${
+                        showSoundPicker || selectedSoundTrackId !== 'original'
+                          ? 'bg-[#FFFC00] text-slate-950'
+                          : 'bg-black/55 text-white'
+                      }`}
+                    >
+                      <Music2 className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idx = VIEW_TIMER_OPTIONS.indexOf(
+                      durationSec as (typeof VIEW_TIMER_OPTIONS)[number]
+                    );
+                    setDurationSec(VIEW_TIMER_OPTIONS[(idx + 1) % VIEW_TIMER_OPTIONS.length]);
+                  }}
+                  title="Snap timer (1-10s or ∞)"
+                  className="h-9 px-2.5 rounded-full bg-black/55 text-white text-xs font-mono-tabular font-semibold flex items-center gap-1 backdrop-blur-xs cursor-pointer"
+                >
+                  <Timer className="w-3.5 h-3.5 text-[#FFFC00]" />
+                  <span>{durationSec === 0 ? '∞' : `${durationSec}s`}</span>
+                </button>
+              </div>
+            </>
           )}
         </div>
+
+        {/* Live Camera Right Side Tools Column */}
+        {!capturedMedia && (
+          <div className="absolute right-3 top-20 z-20 flex flex-col items-center gap-2.5 bg-black/40 backdrop-blur-xs py-2.5 px-1.5 rounded-full">
+            <button
+              type="button"
+              onClick={() => setFlashOn((v) => !v)}
+              title="Flash"
+              className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${
+                flashOn ? 'bg-[#FFFC00] text-slate-950' : 'text-white hover:bg-white/15'
+              }`}
+            >
+              <Zap className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const idx = CAPTURE_TIMER_OPTIONS.indexOf(
+                  captureTimerSec as (typeof CAPTURE_TIMER_OPTIONS)[number]
+                );
+                setCaptureTimerSec(CAPTURE_TIMER_OPTIONS[(idx + 1) % CAPTURE_TIMER_OPTIONS.length]);
+              }}
+              title="Capture Timer"
+              className={`w-9 h-9 rounded-full flex flex-col items-center justify-center cursor-pointer ${
+                captureTimerSec > 0 ? 'bg-[#FFFC00] text-slate-950' : 'text-white hover:bg-white/15'
+              }`}
+            >
+              <Timer className="w-4 h-4" />
+              {captureTimerSec > 0 && (
+                <span className="text-[9px] font-bold leading-none">{captureTimerSec}s</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const idx = LENSES.findIndex((l) => l.id === selectedLens.id);
+                setSelectedLens(LENSES[(idx + 1) % LENSES.length]);
+              }}
+              title="Next Filter"
+              className="w-9 h-9 rounded-full text-white hover:bg-white/15 flex items-center justify-center cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLensesRow((v) => !v)}
+              title="Toggle Lens Carousel"
+              className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${
+                showLensesRow ? 'bg-[#FFFC00] text-slate-950' : 'text-white hover:bg-white/15'
+              }`}
+            >
+              <Smile className="w-4 h-4" />
+            </button>
+            {onOpenMemories && (
+              <button
+                type="button"
+                onClick={onOpenMemories}
+                title="Open Memories"
+                className="w-9 h-9 rounded-full text-white hover:bg-white/15 flex items-center justify-center cursor-pointer"
+              >
+                <FolderHeart className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Pen Color Picker Strip */}
         {capturedMedia && drawingMode && (
@@ -851,19 +1188,80 @@ export function SnapCameraModal({
           </div>
         )}
 
-        {/* Sticker Picker Overlay */}
+        {/* Sticker / GIF / Location / Weather Picker Overlay */}
         {capturedMedia && showStickerBar && (
-          <div className="absolute top-16 left-4 right-4 z-20 p-2.5 rounded-2xl bg-black/75 backdrop-blur-md flex items-center justify-center flex-wrap gap-2">
-            {STICKER_OPTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => handleAddSticker(emoji)}
-                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/25 text-2xl flex items-center justify-center cursor-pointer"
-              >
-                {emoji}
-              </button>
-            ))}
+          <div className="absolute top-16 left-4 right-4 z-20 p-3 rounded-2xl bg-black/85 border border-white/15 backdrop-blur-md space-y-2.5">
+            <div className="flex items-center gap-1.5">
+              {(
+                [
+                  { id: 'emoji', label: 'Emojis' },
+                  { id: 'gif', label: 'GIF Stickers' },
+                  { id: 'info', label: 'Location & Time' },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setStickerTab(t.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer ${
+                    stickerTab === t.id ? 'bg-[#FFFC00] text-slate-950' : 'bg-white/10 text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {stickerTab === 'emoji' && (
+              <div className="flex items-center justify-center flex-wrap gap-2">
+                {STICKER_OPTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => handleAddSticker(emoji, 'emoji')}
+                    className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/25 text-2xl flex items-center justify-center cursor-pointer"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {stickerTab === 'gif' && (
+              <div className="grid grid-cols-2 gap-2">
+                {GIF_BADGE_STICKERS.map((badge) => (
+                  <button
+                    key={badge}
+                    type="button"
+                    onClick={() => handleAddSticker(badge, 'badge')}
+                    className="h-10 rounded-xl bg-gradient-to-r from-[#FFFC00] to-amber-300 text-slate-950 text-xs font-extrabold tracking-wide flex items-center justify-center cursor-pointer"
+                  >
+                    {badge}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {stickerTab === 'info' && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={addLocationSticker}
+                  className="h-10 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#FFFC00]" />
+                  <span>Location Sticker</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={addTimeWeatherSticker}
+                  className="h-10 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <SunMedium className="w-3.5 h-3.5 text-[#FFFC00]" />
+                  <span>Time &amp; Weather</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -894,18 +1292,12 @@ export function SnapCameraModal({
                     setPreviewMuted(false);
                   }}
                   className={`w-full px-3 py-2 rounded-xl flex items-center justify-between text-left cursor-pointer ${
-                    selected
-                      ? 'bg-[#FFFC00] text-slate-950'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
+                    selected ? 'bg-[#FFFC00] text-slate-950' : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold truncate">{track.title}</p>
-                    <p
-                      className={`text-[11px] truncate ${
-                        selected ? 'text-slate-800' : 'text-white/65'
-                      }`}
-                    >
+                    <p className={`text-[11px] truncate ${selected ? 'text-slate-800' : 'text-white/65'}`}>
                       {track.subtitle}
                     </p>
                   </div>
@@ -945,6 +1337,35 @@ export function SnapCameraModal({
                 }}
                 className="w-full h-full object-cover"
               />
+              {/* Live Lens Overlay Preview */}
+              {selectedLens.overlayType === 'dog' && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-7xl -mt-36 drop-shadow-lg">🐶</span>
+                </div>
+              )}
+              {selectedLens.overlayType === 'crown' && (
+                <div className="pointer-events-none absolute top-[18%] left-0 right-0 flex justify-center gap-1 text-4xl drop-shadow-lg">
+                  <span>🌸</span>
+                  <span className="-mt-2">🌺</span>
+                  <span className="-mt-3">🌼</span>
+                  <span className="-mt-2">🌻</span>
+                  <span>🌸</span>
+                </div>
+              )}
+              {selectedLens.overlayType === 'funny' && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-6">
+                  <span className="text-6xl drop-shadow-lg">👀</span>
+                  <span className="text-6xl drop-shadow-lg">😜</span>
+                </div>
+              )}
+              {selectedLens.overlayType === 'cartoon' && (
+                <div className="pointer-events-none absolute inset-3 border-4 border-[#FFFC00] rounded-3xl">
+                  <span className="inline-block m-3 px-2.5 py-1 rounded-lg bg-[#FFFC00] text-slate-950 font-black text-sm tracking-wider">
+                    POW!
+                  </span>
+                </div>
+              )}
+
               {countdownLeft !== null && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/25">
                   <span className="text-7xl font-display font-bold text-[#FFFC00] drop-shadow-lg font-mono-tabular">
@@ -954,7 +1375,8 @@ export function SnapCameraModal({
               )}
               {isRecording && (
                 <div className="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-rose-600 text-white text-xs font-mono-tabular font-bold flex items-center gap-1.5">
-                  <span>REC {recordingSec}s / 12s</span>
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                  <span>REC {formatRecTime(recordingSec)} / 1:00</span>
                 </div>
               )}
               {cameraError && (
@@ -962,12 +1384,8 @@ export function SnapCameraModal({
                   <div className="w-14 h-14 rounded-2xl bg-[#FFFC00] text-slate-950 flex items-center justify-center mb-4">
                     <Camera className="w-7 h-7" />
                   </div>
-                  <p className="text-sm font-medium text-white mb-2">
-                    720p Snap Studio
-                  </p>
-                  <p className="text-xs text-slate-400 max-w-xs mb-5">
-                    {cameraError}
-                  </p>
+                  <p className="text-sm font-medium text-white mb-2">Snap Studio</p>
+                  <p className="text-xs text-slate-400 max-w-xs mb-5">{cameraError}</p>
                   <button
                     type="button"
                     onClick={() => {
@@ -978,7 +1396,7 @@ export function SnapCameraModal({
                     className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer"
                   >
                     <ImagePlus className="w-4 h-4" />
-                    <span>Upload 720p Photo or Video</span>
+                    <span>Upload Photo or Video</span>
                   </button>
                 </div>
               )}
@@ -997,11 +1415,21 @@ export function SnapCameraModal({
                   className="max-w-full max-h-full object-contain"
                 />
               ) : (
-                <>
+                <div
+                  className={`relative flex items-center justify-center overflow-hidden ${
+                    cropRatio === '9:16'
+                      ? 'aspect-[9/16] h-full max-w-full'
+                      : cropRatio === '1:1'
+                      ? 'aspect-square max-h-full max-w-full'
+                      : cropRatio === '4:3'
+                      ? 'aspect-[4/3] max-h-full max-w-full'
+                      : 'w-full h-full'
+                  }`}
+                >
                   <img
                     src={capturedMedia.dataUrl}
                     alt="Captured Snap"
-                    className="max-w-full max-h-full object-contain select-none pointer-events-none"
+                    className="w-full h-full object-cover select-none pointer-events-none"
                   />
                   <canvas
                     ref={drawCanvasRef}
@@ -1027,12 +1455,16 @@ export function SnapCameraModal({
                         top: `${st.y * 100}%`,
                         transform: 'translate(-50%, -50%)',
                       }}
-                      className="absolute z-10 text-4xl select-none cursor-grab active:cursor-grabbing"
+                      className={
+                        st.kind === 'emoji'
+                          ? 'absolute z-10 text-4xl select-none cursor-grab active:cursor-grabbing'
+                          : 'absolute z-10 px-3 py-1 rounded-xl bg-slate-950/85 text-[#FFFC00] text-xs font-extrabold shadow-lg border border-white/15 select-none cursor-grab active:cursor-grabbing whitespace-nowrap'
+                      }
                     >
-                      {st.emoji}
+                      {st.content}
                     </span>
                   ))}
-                </>
+                </div>
               )}
 
               {(showCaptionInput || caption) && (
@@ -1061,51 +1493,49 @@ export function SnapCameraModal({
         />
 
         {!capturedMedia ? (
-          <div className="px-4 pt-3 pb-5 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-3">
+          <div className="px-4 pt-2 pb-4 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-2.5">
             {/* Lenses Strip */}
-            <div className="flex items-center gap-2 overflow-x-auto chat-scroll pb-1">
-              {LENSES.map((lens) => (
-                <button
-                  key={lens.id}
-                  type="button"
-                  onClick={() => setSelectedLens(lens)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 flex items-center gap-1 cursor-pointer transition-colors ${
-                    selectedLens.id === lens.id
-                      ? 'bg-[#FFFC00] text-slate-950 font-semibold'
-                      : 'bg-white/12 text-white hover:bg-white/20'
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>{lens.label}</span>
-                </button>
-              ))}
-            </div>
+            {showLensesRow && (
+              <div className="flex items-center gap-2 overflow-x-auto chat-scroll pb-1">
+                {LENSES.map((lens) => (
+                  <button
+                    key={lens.id}
+                    type="button"
+                    onClick={() => setSelectedLens(lens)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer transition-colors ${
+                      selectedLens.id === lens.id
+                        ? 'bg-[#FFFC00] text-slate-950 font-bold'
+                        : 'bg-white/12 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    <span>{lens.badge}</span>
+                    <span>{lens.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {/* Mode Switch (Photo / Video) */}
+            {/* Mode Switch */}
             <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => setCaptureKind('photo')}
                 className={`h-7 px-3 rounded-full text-xs font-medium cursor-pointer flex items-center gap-1 ${
-                  captureKind === 'photo'
-                    ? 'bg-white text-slate-950 font-semibold'
-                    : 'text-white/70 hover:text-white'
+                  captureKind === 'photo' ? 'bg-white text-slate-950 font-semibold' : 'text-white/70 hover:text-white'
                 }`}
               >
                 <Camera className="w-3 h-3" />
-                <span>Photo</span>
+                <span>Photo (Hold for Video)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCaptureKind('video')}
                 className={`h-7 px-3 rounded-full text-xs font-medium cursor-pointer flex items-center gap-1 ${
-                  captureKind === 'video'
-                    ? 'bg-[#8B5CF6] text-white font-semibold'
-                    : 'text-white/70 hover:text-white'
+                  captureKind === 'video' ? 'bg-[#8B5CF6] text-white font-semibold' : 'text-white/70 hover:text-white'
                 }`}
               >
                 <Video className="w-3 h-3" />
-                <span>Video</span>
+                <span>60s Video</span>
               </button>
             </div>
 
@@ -1118,7 +1548,7 @@ export function SnapCameraModal({
                   unlockVideoTranscodeAudio();
                   fileInputRef.current?.click();
                 }}
-                title="Upload photo or 720p video from device"
+                title="Camera Roll Upload"
                 className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
               >
                 <ImagePlus className="w-5 h-5" />
@@ -1127,9 +1557,13 @@ export function SnapCameraModal({
               <button
                 type="button"
                 disabled={!cameraReady}
-                onClick={handleShutterClick}
-                aria-label={isRecording ? 'Stop recording' : 'Take Snap'}
-                className={`w-[74px] h-[74px] rounded-full border-4 flex items-center justify-center transition-transform active:scale-95 cursor-pointer disabled:opacity-35 ${
+                onPointerDown={handleShutterPointerDown}
+                onPointerUp={handleShutterPointerUp}
+                onPointerCancel={() => {
+                  if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+                }}
+                aria-label={isRecording ? 'Stop recording' : 'Tap for photo, hold for video'}
+                className={`w-[76px] h-[76px] rounded-full border-4 flex items-center justify-center transition-transform active:scale-95 cursor-pointer disabled:opacity-35 select-none touch-none ${
                   isRecording
                     ? 'border-rose-500 bg-rose-500/30'
                     : captureKind === 'video'
@@ -1143,20 +1577,46 @@ export function SnapCameraModal({
                       ? 'w-7 h-7 rounded-md bg-rose-500'
                       : captureKind === 'video'
                       ? 'w-14 h-14 rounded-full bg-[#8B5CF6]'
-                      : 'w-14 h-14 rounded-full bg-white'
+                      : 'w-14 h-14 rounded-full bg-[#FFFC00]'
                   }`}
                 />
               </button>
 
-              <div className="w-11 h-11" />
+              {onOpenMemories ? (
+                <button
+                  type="button"
+                  onClick={onOpenMemories}
+                  title="Memories"
+                  className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
+                >
+                  <FolderHeart className="w-5 h-5" />
+                </button>
+              ) : (
+                <div className="w-11 h-11" />
+              )}
             </div>
           </div>
         ) : !showSendPicker ? (
           <div className="bg-black/90 border-t border-slate-800">
-            {sendError && (
-              <p className="px-4 pt-3 text-xs font-medium text-rose-400">{sendError}</p>
-            )}
-            <div className="px-4 py-4 flex items-center justify-between gap-2">
+            {sendError && <p className="px-4 pt-3 text-xs font-medium text-rose-400">{sendError}</p>}
+            <div className="px-3 sm:px-4 py-3.5 flex items-center justify-between gap-2 overflow-x-auto">
+              {onSaveToMemory && (
+                <button
+                  type="button"
+                  disabled={savingMemory || savedToMemoryFeedback}
+                  onClick={handleSaveMemoryClick}
+                  title="Save to Memories"
+                  className={`h-11 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    savedToMemoryFeedback
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-white/12 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span>{savedToMemoryFeedback ? 'Saved' : savingMemory ? 'Saving...' : 'Save'}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 disabled={sending}
@@ -1175,16 +1635,23 @@ export function SnapCameraModal({
                       durationSec: durationSec === 0 ? 5 : durationSec,
                       postToStory: true,
                     });
-                    onClose();
+                    if (embedded) {
+                      setCapturedMedia(null);
+                      setStrokes([]);
+                      setStickers([]);
+                      setCaption('');
+                    } else {
+                      onClose();
+                    }
                   } catch (err) {
                     setSendError(err instanceof Error ? err.message : 'Unable to post story.');
                   } finally {
                     setSending(false);
                   }
                 }}
-                className="h-11 px-3.5 rounded-xl bg-white/12 hover:bg-white/20 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="h-11 px-3 rounded-xl bg-white/12 hover:bg-white/20 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
-                <span>{sending && postToStory ? 'Posting...' : '+ My Story'}</span>
+                <span>{sending && postToStory ? 'Posting...' : '+ Story'}</span>
               </button>
 
               {capturedMedia.mediaType === 'video' && (
@@ -1212,14 +1679,18 @@ export function SnapCameraModal({
                             ? `Original Sound · ${currentUser.displayName.split(' ')[0]}`
                             : selectedTrackMeta.title,
                       });
-                      onClose();
+                      if (embedded) {
+                        setCapturedMedia(null);
+                      } else {
+                        onClose();
+                      }
                     } catch (err) {
                       setSendError(err instanceof Error ? err.message : 'Unable to post to Spotlight.');
                     } finally {
                       setSending(false);
                     }
                   }}
-                  className="h-11 px-3.5 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 disabled:opacity-50 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  className="h-11 px-3 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 disabled:opacity-50 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Film className="w-3.5 h-3.5" />
                   <span>{sending && postToSpotlight ? 'Posting...' : '+ Spotlight'}</span>
@@ -1233,7 +1704,7 @@ export function SnapCameraModal({
                   setSendError('');
                   setShowSendPicker(true);
                 }}
-                className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer ml-auto"
+                className="h-11 px-4 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold flex items-center gap-2 shrink-0 cursor-pointer ml-auto"
               >
                 <span>Send To</span>
                 <Send className="w-4 h-4" />
@@ -1260,9 +1731,7 @@ export function SnapCameraModal({
                 type="button"
                 onClick={() => setPostToStory((v) => !v)}
                 className={`w-full px-3 py-2.5 rounded-2xl flex items-center justify-between border transition-colors cursor-pointer ${
-                  postToStory
-                    ? 'border-[#8B5CF6] bg-[#8B5CF6]/10'
-                    : 'border-slate-200 dark:border-slate-800'
+                  postToStory ? 'border-[#8B5CF6] bg-[#8B5CF6]/10' : 'border-slate-200 dark:border-slate-800'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1273,19 +1742,13 @@ export function SnapCameraModal({
                     size="md"
                   />
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                      My Story
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Visible for 24 hours
-                    </p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">My Story</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Visible for 24 hours</p>
                   </div>
                 </div>
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center border ${
-                    postToStory
-                      ? 'bg-[#8B5CF6] border-[#8B5CF6] text-white'
-                      : 'border-slate-300 dark:border-slate-600'
+                    postToStory ? 'bg-[#8B5CF6] border-[#8B5CF6] text-white' : 'border-slate-300 dark:border-slate-600'
                   }`}
                 >
                   {postToStory && <Check className="w-3.5 h-3.5" />}
@@ -1297,9 +1760,7 @@ export function SnapCameraModal({
                   type="button"
                   onClick={() => setPostToSpotlight((v) => !v)}
                   className={`w-full px-3 py-2.5 rounded-2xl flex items-center justify-between border transition-colors cursor-pointer ${
-                    postToSpotlight
-                      ? 'border-[#FFFC00] bg-[#FFFC00]/15'
-                      : 'border-slate-200 dark:border-slate-800'
+                    postToSpotlight ? 'border-[#FFFC00] bg-[#FFFC00]/15' : 'border-slate-200 dark:border-slate-800'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -1310,9 +1771,7 @@ export function SnapCameraModal({
                       <p className="text-sm font-semibold text-slate-900 dark:text-white">
                         Spotlight Feed (Public)
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Post to CoolerUp Video Feed
-                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Post to CoolerUp Video Feed</p>
                     </div>
                   </div>
                   <span
@@ -1327,9 +1786,7 @@ export function SnapCameraModal({
                 </button>
               )}
 
-              <p className="px-2 pt-2 text-xs font-medium text-slate-400">
-                Recent Chats
-              </p>
+              <p className="px-2 pt-2 text-xs font-medium text-slate-400">Recent Chats</p>
 
               {activeChats.map((chat) => {
                 const isSelected = selectedConvIds.includes(chat.conversationId);
@@ -1373,9 +1830,7 @@ export function SnapCameraModal({
 
               {otherProfiles.length > 0 && (
                 <>
-                  <p className="px-2 pt-2 text-xs font-medium text-slate-400">
-                    Friends
-                  </p>
+                  <p className="px-2 pt-2 text-xs font-medium text-slate-400">Friends</p>
                   {otherProfiles.map((peer) => {
                     const isSelected = selectedPeerUids.includes(peer.uid);
                     return (
@@ -1418,9 +1873,7 @@ export function SnapCameraModal({
               )}
             </div>
 
-            {sendError && (
-              <p className="px-4 py-2 text-xs text-rose-600 dark:text-rose-400">{sendError}</p>
-            )}
+            {sendError && <p className="px-4 py-2 text-xs text-rose-600 dark:text-rose-400">{sendError}</p>}
 
             <div className="p-4 border-t border-slate-200 dark:border-slate-800">
               <button

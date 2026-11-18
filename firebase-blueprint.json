@@ -2,7 +2,7 @@
   "entities": {
     "PublicProfile": {
       "title": "PublicProfile",
-      "description": "Public non-PII user directory profile with Snap Score and Bitmoji-style avatar config.",
+      "description": "Public non-PII user directory profile with Snap Score, Bitmoji config, Trophies, Map coordinates (when not in Ghost Mode), and Spotlight follow lists.",
       "type": "object",
       "properties": {
         "uid": {
@@ -42,6 +42,35 @@
         "snapScore": {
           "type": "integer"
         },
+        "trophies": {
+          "type": "array",
+          "description": "Bounded list of unlocked trophy IDs (max 30)"
+        },
+        "ghostMode": {
+          "type": "boolean"
+        },
+        "lat": {
+          "type": "number"
+        },
+        "lng": {
+          "type": "number"
+        },
+        "locationLabel": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "locationUpdatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "followers": {
+          "type": "array",
+          "description": "Bounded list of follower UIDs (max 500)"
+        },
+        "following": {
+          "type": "array",
+          "description": "Bounded list of followed creator UIDs (max 500)"
+        },
         "isOnline": {
           "type": "boolean"
         },
@@ -77,7 +106,7 @@
     },
     "PrivateUserInfo": {
       "title": "PrivateUserInfo",
-      "description": "Strictly isolated PII and private preferences belonging to a single user.",
+      "description": "Strictly isolated PII, privacy settings, My Eyes Only PIN hash, and blocked user list belonging to a single user.",
       "type": "object",
       "properties": {
         "uid": {
@@ -93,6 +122,36 @@
         "themeMode": {
           "type": "string",
           "enum": ["light", "dark"]
+        },
+        "birthday": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "phoneNumber": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "myEyesOnlyPinHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "privacyContact": {
+          "type": "string",
+          "enum": ["everyone", "friends"]
+        },
+        "privacyStory": {
+          "type": "string",
+          "enum": ["everyone", "friends", "custom"]
+        },
+        "privacyQuickAdd": {
+          "type": "boolean"
+        },
+        "blockedUids": {
+          "type": "array",
+          "description": "Bounded list of blocked UIDs (max 200)"
+        },
+        "notificationsEnabled": {
+          "type": "boolean"
         },
         "createdAt": {
           "type": "string",
@@ -223,6 +282,10 @@
           "type": "integer"
         },
         "lastSnapAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "clearedAt": {
           "type": "string",
           "format": "date-time"
         },
@@ -582,7 +645,7 @@
     },
     "Story": {
       "title": "Story",
-      "description": "24-hour photo or video Story posted by a user for friends on CoolerUp Messages.",
+      "description": "24-hour photo or video Story posted by a user for friends or Snap Map on CoolerUp Messages.",
       "type": "object",
       "properties": {
         "id": {
@@ -630,6 +693,20 @@
         "viewerIds": {
           "type": "array",
           "description": "Bounded list of UIDs who viewed this story (max 200)"
+        },
+        "likedBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs who hearted this story (max 200)"
+        },
+        "locationLabel": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "lat": {
+          "type": "number"
+        },
+        "lng": {
+          "type": "number"
         },
         "isPublicStory": {
           "type": "boolean"
@@ -704,7 +781,7 @@
         },
         "chunkCount": {
           "type": "integer",
-          "description": "Number of 500KB subcollection chunks for 720p HD video with audio (0 when stored inline)"
+          "description": "Number of 500KB subcollection chunks for 720p HD video with audio (0 when stored inline or via Storage URL)"
         },
         "resolution": {
           "type": "string",
@@ -727,6 +804,9 @@
           "description": "Bounded list of UIDs who liked this Spotlight video (max 500)"
         },
         "viewCount": {
+          "type": "integer"
+        },
+        "commentCount": {
           "type": "integer"
         },
         "isPublic": {
@@ -801,16 +881,257 @@
         "data",
         "createdAt"
       ]
+    },
+    "SpotlightComment": {
+      "title": "SpotlightComment",
+      "description": "Public comment on a Spotlight video.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "videoId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "authorHandle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "authorPhotoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "videoId",
+        "authorId",
+        "authorName",
+        "authorHandle",
+        "authorPhotoURL",
+        "text",
+        "createdAt"
+      ]
+    },
+    "MemoryItem": {
+      "title": "MemoryItem",
+      "description": "Saved Snap, Camera Roll import, or My Eyes Only PIN-locked memory belonging to a single user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mediaUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 650000
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": ["photo", "video"]
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "source": {
+          "type": "string",
+          "enum": ["snap", "camera_roll", "spotlight"]
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "savedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "mediaUrl",
+        "mediaType",
+        "caption",
+        "source",
+        "locked",
+        "savedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "In-app activity notification for friend requests, Snaps, screenshots, and Spotlight engagement.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["snap", "chat", "friend_request", "friend_accept", "story_like", "spotlight_like", "spotlight_comment", "screenshot", "system"]
+        },
+        "fromUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fromUserName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "fromPhotoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "fromUserId",
+        "fromUserName",
+        "fromPhotoURL",
+        "message",
+        "read",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserReport": {
+      "title": "UserReport",
+      "description": "Safety report filed by a user against another account.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reporterId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "targetUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "details": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "reporterId",
+        "targetUserId",
+        "reason",
+        "details",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
     "/profiles/{profileId}": {
       "schema": { "$ref": "#/entities/PublicProfile" },
-      "description": "Public non-PII user profiles for discovering contacts on CoolerUp Messages."
+      "description": "Public non-PII user profiles for discovering contacts, Snap Map visibility, and Spotlight follows."
     },
     "/users/{userId}/private/{docId}": {
       "schema": { "$ref": "#/entities/PrivateUserInfo" },
-      "description": "Private PII and user theme settings isolated to the owning user."
+      "description": "Private PII, birthday, phone number, My Eyes Only PIN hash, privacy settings, and blocked users isolated to the owning user."
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": { "$ref": "#/entities/MemoryItem" },
+      "description": "User's private Memories including Saved Snaps, Camera Roll uploads, and My Eyes Only items."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "User's private notifications feed."
     },
     "/friendships/{friendshipId}": {
       "schema": { "$ref": "#/entities/Friendship" },
@@ -834,7 +1155,7 @@
     },
     "/stories/{storyId}": {
       "schema": { "$ref": "#/entities/Story" },
-      "description": "24-hour visual Stories shared by users."
+      "description": "24-hour visual Stories shared by users and optionally pinned to Snap Map."
     },
     "/spotlightVideos/{videoId}": {
       "schema": { "$ref": "#/entities/SpotlightVideo" },
@@ -843,6 +1164,14 @@
     "/spotlightVideos/{videoId}/chunks/{chunkId}": {
       "schema": { "$ref": "#/entities/SpotlightVideoChunk" },
       "description": "Ordered 720p audio/video data chunks belonging to a SpotlightVideo document."
+    },
+    "/spotlightVideos/{videoId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/SpotlightComment" },
+      "description": "Public comments attached to a Spotlight video."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/UserReport" },
+      "description": "Abuse/safety reports submitted by verified users."
     }
   }
 }

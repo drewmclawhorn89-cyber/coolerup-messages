@@ -1,18 +1,23 @@
 import { useMemo, useState } from 'react';
 import {
+  BellOff,
   Check,
   Contact,
   Copy,
+  Flame,
   MessageSquare,
   QrCode,
   Search,
+  ShieldAlert,
+  ShieldBan,
   UserCheck,
+  UserMinus,
   UserPlus,
   X,
 } from 'lucide-react';
 import { formatLastSeen } from '../lib/dateFormat';
 import { extractHandleFromSnapcodeInput } from '../lib/snapUtils';
-import type { Friendship, PublicProfile } from '../types/messenger';
+import type { Friendship, PublicProfile, UserChatIndex } from '../types/messenger';
 import { Avatar } from './Avatar';
 import { SnapcodeCard } from './SnapcodeCard';
 
@@ -20,8 +25,15 @@ interface PeopleDirectoryProps {
   currentUser: PublicProfile;
   profiles: PublicProfile[];
   friendships: Friendship[];
+  chats?: UserChatIndex[];
+  blockedUids?: string[];
   onSendFriendRequest: (peer: PublicProfile) => Promise<void>;
   onRespondFriendRequest: (friendshipId: string, accept: boolean) => Promise<void>;
+  onRemoveFriendship?: (friendshipId: string) => Promise<void>;
+  onBlockUser?: (uid: string) => Promise<void>;
+  onUnblockUser?: (uid: string) => Promise<void>;
+  onReportUser?: (uid: string, reason: string) => Promise<void>;
+  onToggleMuteChat?: (conversationId: string, muted: boolean) => Promise<void>;
   onStartDirectChat: (peer: PublicProfile) => void;
   onOpenNewGroup: () => void;
 }
@@ -30,8 +42,15 @@ export function PeopleDirectory({
   currentUser,
   profiles,
   friendships,
+  chats = [],
+  blockedUids = [],
   onSendFriendRequest,
   onRespondFriendRequest,
+  onRemoveFriendship,
+  onBlockUser,
+  onUnblockUser,
+  onReportUser,
+  onToggleMuteChat,
   onStartDirectChat,
   onOpenNewGroup,
 }: PeopleDirectoryProps) {
@@ -336,36 +355,114 @@ export function PeopleDirectory({
             <p className="px-3 pb-1 text-xs font-medium text-slate-400 dark:text-slate-500">
               My Friends · {acceptedFriends.length}
             </p>
-            {acceptedFriends.map((friend) => (
-              <button
-                key={friend.uid}
-                type="button"
-                onClick={() => onStartDirectChat(friend)}
-                className="w-full min-h-[60px] px-3 py-2 rounded-2xl flex items-center justify-between gap-3 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50 transition-colors text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar
-                    name={friend.displayName}
-                    photoURL={friend.photoURL}
-                    avatarSeed={friend.avatarSeed}
-                    size="md"
-                    isOnline={friend.isOnline}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {friend.displayName}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      @{friend.handle} · {friend.snapScore ?? 0} score
-                    </p>
+            {acceptedFriends.map((friend, friendIdx) => {
+              const rel = friendshipByPeer.get(friend.uid);
+              const friendChat = chats.find((c) => c.type === 'direct' && c.peerUid === friend.uid);
+              const streak = friendChat?.streakCount || 0;
+              const bestEmoji = friendIdx === 0 ? '❤️' : friendIdx === 1 ? '💛' : friendIdx === 2 ? '😊' : '';
+              const isBlocked = blockedUids.includes(friend.uid);
+
+              return (
+                <div
+                  key={friend.uid}
+                  className="w-full min-h-[60px] px-3 py-2 rounded-2xl flex items-center justify-between gap-2 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50 transition-colors"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onStartDirectChat(friend)}
+                    className="flex-1 flex items-center gap-3 min-w-0 text-left cursor-pointer"
+                  >
+                    <Avatar
+                      name={friend.displayName}
+                      photoURL={friend.photoURL}
+                      avatarSeed={friend.avatarSeed}
+                      size="md"
+                      isOnline={friend.isOnline}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1">
+                        <span className="truncate">{friend.displayName}</span>
+                        {bestEmoji && <span className="text-xs shrink-0">{bestEmoji}</span>}
+                        {streak >= 2 && (
+                          <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-500 shrink-0 font-mono-tabular">
+                            <Flame className="w-3 h-3 fill-amber-500" />
+                            {streak}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        @{friend.handle} · {friend.snapScore ?? 0} score{isBlocked ? ' · Blocked' : ''}
+                      </p>
+                    </div>
+                  </button>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {friendChat && onToggleMuteChat && (
+                      <button
+                        type="button"
+                        onClick={() => void onToggleMuteChat(friendChat.conversationId, !friendChat.muted)}
+                        title={friendChat.muted ? 'Unmute notifications' : 'Mute notifications'}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
+                          friendChat.muted
+                            ? 'bg-amber-500/15 text-amber-500'
+                            : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <BellOff className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {onBlockUser && onUnblockUser && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void (isBlocked ? onUnblockUser(friend.uid) : onBlockUser(friend.uid))
+                        }
+                        title={isBlocked ? 'Unblock user' : 'Block user'}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
+                          isBlocked
+                            ? 'bg-rose-500 text-white'
+                            : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                        }`}
+                      >
+                        <ShieldBan className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {onReportUser && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void onReportUser(friend.uid, 'User safety report');
+                          setContactFeedback(`Reported @${friend.handle}`);
+                          setTimeout(() => setContactFeedback(''), 2500);
+                        }}
+                        title="Report user"
+                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30 flex items-center justify-center cursor-pointer"
+                      >
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {rel && onRemoveFriendship && (
+                      <button
+                        type="button"
+                        onClick={() => void onRemoveFriendship(rel.id)}
+                        title="Remove friend"
+                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center cursor-pointer"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onStartDirectChat(friend)}
+                      className="h-8 px-2.5 rounded-xl bg-[#00A6FF]/12 text-[#00A6FF] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Chat</span>
+                    </button>
                   </div>
                 </div>
-                <span className="h-8 px-3 rounded-xl bg-[#00A6FF]/12 text-[#00A6FF] text-xs font-semibold flex items-center gap-1 shrink-0">
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Chat</span>
-                </span>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
 

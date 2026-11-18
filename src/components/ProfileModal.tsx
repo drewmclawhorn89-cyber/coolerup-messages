@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, LogOut, Moon, QrCode, Smile, Sun, X } from 'lucide-react';
+import { Award, Check, Copy, Flame, LogOut, Moon, QrCode, Settings, Smile, Sun, X } from 'lucide-react';
 import {
   BITMOJI_BG_PALETTE,
   BITMOJI_HAIR_COLORS,
@@ -16,11 +16,22 @@ import { Avatar } from './Avatar';
 import { PWAInstallButton } from './PWAInstallButton';
 import { SnapcodeCard } from './SnapcodeCard';
 
+const TROPHY_CATALOG = [
+  { id: 'first_snap', icon: '🥚', label: 'First Snap', unlockedWhen: (score: number) => score >= 1 },
+  { id: 'streak_fire', icon: '🔥', label: 'Streak Master', unlockedWhen: (_s: number, streak: number) => streak >= 2 },
+  { id: 'snap_hundred', icon: '💯', label: 'Snap 100', unlockedWhen: (score: number) => score >= 100 },
+  { id: 'storyteller', icon: '📖', label: 'Storyteller', unlockedWhen: (_s: number, _st: number, list: string[]) => list.includes('storyteller') },
+  { id: 'spotlight_star', icon: '🎬', label: 'Spotlight Star', unlockedWhen: (_s: number, _st: number, list: string[]) => list.includes('spotlight_star') },
+  { id: 'bitmoji_creator', icon: '👻', label: 'Bitmoji Pro', unlockedWhen: (_s: number, _st: number, _l: string[], seed: string) => Boolean(seed) },
+];
+
 interface ProfileModalProps {
   profile: PublicProfile;
   privateInfo: PrivateUserInfo | null;
+  topStreakCount?: number;
   darkMode: boolean;
   onToggleTheme: () => void;
+  onOpenSettings?: () => void;
   onSaveProfile: (updates: {
     displayName: string;
     handle: string;
@@ -35,8 +46,10 @@ interface ProfileModalProps {
 export function ProfileModal({
   profile,
   privateInfo,
+  topStreakCount = 0,
   darkMode,
   onToggleTheme,
+  onOpenSettings,
   onSaveProfile,
   onSignOut,
   onClose,
@@ -118,16 +131,31 @@ export function ProfileModal({
       >
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
           <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
-            Profile &amp; Snapcode
+            Profile, Trophies &amp; Snapcode
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSettings();
+                }}
+                aria-label="Open Settings"
+                className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close modal"
+              className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Section Tabs */}
@@ -492,6 +520,45 @@ export function ProfileModal({
                 </div>
 
                 <PWAInstallButton variant="row" />
+              </div>
+
+              {/* Streaks & Trophies Showcase */}
+              <div className="p-3.5 rounded-2xl bg-[#F4F6F9] dark:bg-[#0B0F17] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-[#FFFC00] fill-[#FFFC00] stroke-slate-950" />
+                    Trophies &amp; Streaks
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1 font-mono-tabular">
+                    <Flame className="w-3.5 h-3.5 fill-amber-500" />
+                    Best Streak {topStreakCount}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {TROPHY_CATALOG.map((tr) => {
+                    const unlocked = tr.unlockedWhen(
+                      profile.snapScore ?? 0,
+                      topStreakCount,
+                      profile.trophies || [],
+                      effectiveAvatarSeed
+                    );
+                    return (
+                      <div
+                        key={tr.id}
+                        className={`p-2 rounded-xl text-center border ${
+                          unlocked
+                            ? 'bg-white dark:bg-[#1A2232] border-[#FFFC00] shadow-2xs'
+                            : 'bg-slate-200/50 dark:bg-slate-900/50 border-transparent opacity-45'
+                        }`}
+                      >
+                        <div className="text-xl leading-none mb-1">{tr.icon}</div>
+                        <p className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                          {tr.label}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </>
           )}

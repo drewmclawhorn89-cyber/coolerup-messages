@@ -75,6 +75,14 @@ export interface PublicProfile {
   avatarSeed?: string;
   statusText: string;
   snapScore?: number;
+  trophies?: string[];
+  ghostMode?: boolean;
+  lat?: number;
+  lng?: number;
+  locationLabel?: string;
+  locationUpdatedAt?: Timestamp | null;
+  followers?: string[];
+  following?: string[];
   isOnline: boolean;
   isDiscoverable: boolean;
   lastSeenAt: Timestamp | null;
@@ -86,6 +94,14 @@ export interface PrivateUserInfo {
   uid: string;
   email: string;
   themeMode: 'light' | 'dark';
+  birthday?: string;
+  phoneNumber?: string;
+  myEyesOnlyPinHash?: string;
+  privacyContact?: 'everyone' | 'friends';
+  privacyStory?: 'everyone' | 'friends' | 'custom';
+  privacyQuickAdd?: boolean;
+  blockedUids?: string[];
+  notificationsEnabled?: boolean;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -121,6 +137,7 @@ export interface UserChatIndex {
   lastSnapOpened?: boolean;
   streakCount?: number;
   lastSnapAt?: Timestamp | null;
+  clearedAt?: Timestamp | null;
   lastMessageText: string;
   lastMessageSenderId: string;
   lastMessageSenderName: string;
@@ -207,6 +224,10 @@ export interface Story {
   caption: string;
   durationSec: number;
   viewerIds: string[];
+  likedBy?: string[];
+  locationLabel?: string;
+  lat?: number;
+  lng?: number;
   isPublicStory: boolean;
   expiresAt: Timestamp | null;
   createdAt: Timestamp | null;
@@ -228,10 +249,59 @@ export interface SpotlightVideo {
   soundTitle: string;
   likedBy: string[];
   viewCount: number;
+  commentCount?: number;
   isPublic: boolean;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
 
-export type NavTab = 'chats' | 'camera' | 'stories' | 'spotlight' | 'people' | 'archived' | 'video';
+export interface SpotlightComment {
+  id: string;
+  videoId: string;
+  authorId: string;
+  authorName: string;
+  authorHandle: string;
+  authorPhotoURL: string;
+  text: string;
+  createdAt: Timestamp | null;
+}
+
+export interface MemoryItem {
+  id: string;
+  userId: string;
+  mediaUrl: string;
+  mediaType: 'photo' | 'video';
+  caption: string;
+  source: 'snap' | 'camera_roll' | 'spotlight';
+  locked: boolean;
+  savedAt: Timestamp | null;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export type AppNotificationType =
+  | 'snap'
+  | 'chat'
+  | 'friend_request'
+  | 'friend_accept'
+  | 'story_like'
+  | 'spotlight_like'
+  | 'spotlight_comment'
+  | 'screenshot'
+  | 'system';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: AppNotificationType;
+  fromUserId: string;
+  fromUserName: string;
+  fromPhotoURL: string;
+  message: string;
+  read: boolean;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export type NavTab = 'map' | 'chats' | 'camera' | 'stories' | 'spotlight' | 'people' | 'archived' | 'video';
 export type ChatFilter = 'all' | 'snaps' | 'unread' | 'groups';

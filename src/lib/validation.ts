@@ -24,6 +24,7 @@ export const LIMITS = {
   RESOLUTION_MAX: 20,
   QUICK_EMOJI_MAX: 16,
   MEMBERS_MAX: 20,
+  MAX_CAMERA_VIDEO_SEC: 60,
 } as const;
 
 export const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -442,7 +443,7 @@ export async function transcodeVideoFileToBoundedDataUrl(
     if (directEstimate <= LIMITS.IMAGE_DATA_MAX) {
       return blobToBoundedDataUrl(source, 'Video Snap', LIMITS.IMAGE_DATA_MAX);
     }
-  } else if (source.length <= LIMITS.IMAGE_DATA_MAX) {
+  } else if (source.startsWith('https://') || source.startsWith('http://') || source.length <= LIMITS.IMAGE_DATA_MAX) {
     return source;
   }
 

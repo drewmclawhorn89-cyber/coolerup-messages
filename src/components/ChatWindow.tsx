@@ -6,12 +6,14 @@ import {
   Camera,
   Check,
   CheckCheck,
+  Eraser,
   Flame,
   Hourglass,
   Image as ImageIcon,
   Info,
   Mic,
   Pencil,
+  Phone,
   Reply,
   Search,
   Send,
@@ -19,6 +21,7 @@ import {
   Square,
   Timer,
   Trash2,
+  Video,
   Volume2,
   X,
 } from 'lucide-react';
@@ -51,7 +54,12 @@ import {
   subscribeLocalCacheKey,
 } from '../lib/localFallbackStore';
 import { getStreakStatus } from '../lib/snapUtils';
-import { blobToBoundedDataUrl, compressImageToDataUrl, LIMITS } from '../lib/validation';
+import {
+  blobToBoundedDataUrl,
+  compressImageToDataUrl,
+  LIMITS,
+  transcodeVideoFileToBoundedDataUrl,
+} from '../lib/validation';
 import {
   editMessage,
   markConversationRead,
@@ -83,6 +91,17 @@ const SNAP_STICKER_GRID = [
   '📸', '💔', '🎉', '😎', '💥', '🌟', '🤙', '✨',
 ];
 
+const BITMOJI_STICKER_ITEMS = [
+  { id: 'wave', emoji: '👋', label: 'Hey!' },
+  { id: 'fire', emoji: '🔥', label: 'Lit!' },
+  { id: 'heart', emoji: '🫶', label: 'Love U' },
+  { id: 'laugh', emoji: '🤣', label: 'Haha' },
+  { id: 'cool', emoji: '😎', label: 'Mood' },
+  { id: 'coffee', emoji: '☕', label: 'Coffee' },
+  { id: 'snap', emoji: '👻', label: 'Snap Me' },
+  { id: 'party', emoji: '🥳', label: 'Let’s Go' },
+];
+
 interface ChatWindowProps {
   conversationId: string;
   chatIndex: UserChatIndex | undefined;
@@ -95,6 +114,13 @@ interface ChatWindowProps {
   onOpenSnapViewer: (message: Message, conversation: Conversation) => void;
   onConversationLoaded: (conv: Conversation, members: ConversationMember[], messages: Message[]) => void;
   onOpenImageLightbox: (imageData: string) => void;
+  onStartCall?: (
+    mode: 'voice' | 'video',
+    peerName: string,
+    peerPhotoURL?: string,
+    peerAvatarSeed?: string
+  ) => void;
+  onClearChat?: (conversationId: string) => Promise<void>;
 }
 
 export function ChatWindow({
@@ -109,6 +135,8 @@ export function ChatWindow({
   onOpenSnapViewer,
   onConversationLoaded,
   onOpenImageLightbox,
+  onStartCall,
+  onClearChat,
 }: ChatWindowProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [members, setMembers] = useState<ConversationMember[]>([]);
@@ -117,15 +145,17 @@ export function ChatWindow({
 
   const [draftText, setDraftText] = useState('');
   const [pendingImage, setPendingImage] = useState('');
+  const [pendingMediaType, setPendingMediaType] = useState<'photo' | 'video'>('photo');
   const [uploadError, setUploadError] = useState('');
   const [sending, setSending] = useState(false);
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [pickerTab, setPickerTab] = useState<'emoji' | 'stickers'>('emoji');
+  const [pickerTab, setPickerTab] = useState<'emoji' | 'stickers' | 'bitmoji'>('emoji');
   const [activeReactionTarget, setActiveReactionTarget] = useState<string | null>(null);
   const [tappedMsgId, setTappedMsgId] = useState<string | null>(null);
+  const [screenshotBanner, setScreenshotBanner] = useState(false);
 
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceSeconds, setVoiceSeconds] = useState(0);
@@ -147,6 +177,7 @@ export function ChatWindow({
   useEffect(() => {
     setDraftText('');
     setPendingImage('');
+    setPendingMediaType('photo');
     setUploadError('');
     setReplyTo(null);
     setEditingMsg(null);
@@ -427,10 +458,15 @@ export function ChatWindow({
   const visibleMessages = useMemo(() => {
     const q = chatSearchQuery.trim().toLowerCase();
     const dayMs = 24 * 60 * 60 * 1000;
+    const clearedMs = chatIndex?.clearedAt?.toMillis?.() ?? 0;
     return messages.filter((m) => {
+      const createdMs = m.createdAt?.toMillis?.() ?? 0;
+      const isSavedMsg = (m.savedBy || []).length > 0;
+      if (!isSaved && !isSavedMsg && clearedMs > 0 && createdMs > 0 && createdMs <= clearedMs) {
+        return false;
+      }
       // Unsaved messages in non-Saved chats disappear after 24 hours
-      if (!isSaved && (m.savedBy || []).length === 0) {
-        const createdMs = m.createdAt?.toMillis?.();
+      if (!isSaved && !isSavedMsg) {
         if (createdMs && nowTick - createdMs > dayMs) {
           return false;
         }
@@ -438,7 +474,7 @@ export function ChatWindow({
       if (!q) return true;
       return !m.deleted && m.text.toLowerCase().includes(q);
     });
-  }, [messages, chatSearchQuery, isSaved, nowTick]);
+  }, [messages, chatSearchQuery, isSaved, nowTick, chatIndex?.clearedAt]);
 
   const latestOwnMsgId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -491,12 +527,36 @@ export function ChatWindow({
     if (!file) return;
     setUploadError('');
     try {
-      const compressed = await compressImageToDataUrl(file);
-      setPendingImage(compressed);
+      if (file.type.startsWith('video/')) {
+        const videoUrl = await transcodeVideoFileToBoundedDataUrl(file);
+        setPendingMediaType('video');
+        setPendingImage(videoUrl);
+      } else {
+        const compressed = await compressImageToDataUrl(file);
+        setPendingMediaType('photo');
+        setPendingImage(compressed);
+      }
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Unable to attach image.');
+      setUploadError(err instanceof Error ? err.message : 'Unable to attach media.');
     }
   };
+
+  useEffect(() => {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen' && conversation && !isSaved) {
+        setScreenshotBanner(true);
+        setTimeout(() => setScreenshotBanner(false), 3500);
+        void sendMessage({
+          conversation,
+          sender: currentUser,
+          kind: 'system',
+          text: `${currentUser.displayName.split(' ')[0]} took a screenshot!`,
+        });
+      }
+    };
+    window.addEventListener('keyup', handleKeyUp);
+    return () => window.removeEventListener('keyup', handleKeyUp);
+  }, [conversation, currentUser, isSaved]);
 
   const handleSend = async () => {
     if (!conversation || sending) return;
@@ -527,18 +587,20 @@ export function ChatWindow({
         conversation,
         sender: currentUser,
         kind: pendingImage ? 'image' : 'text',
+        mediaType: pendingImage ? pendingMediaType : 'text',
         text: trimmed,
         imageData: pendingImage,
         replyTo: replyTo
           ? {
               id: replyTo.id,
               senderName: replyTo.senderName,
-              text: replyTo.text || (replyTo.imageData ? 'Photo' : ''),
+              text: replyTo.text || (replyTo.imageData ? 'Media' : ''),
             }
           : null,
       });
       setDraftText('');
       setPendingImage('');
+      setPendingMediaType('photo');
       setReplyTo(null);
       setShowEmojiPicker(false);
       setIsAtBottom(true);
@@ -774,7 +836,56 @@ export function ChatWindow({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          {!isSaved && onStartCall && (
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  onStartCall(
+                    'voice',
+                    headerTitle,
+                    peerProfile?.photoURL || chatIndex?.photoURL,
+                    peerProfile?.avatarSeed
+                  )
+                }
+                title="Voice Call"
+                aria-label="Voice Call"
+                className="min-w-[38px] min-h-[38px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <Phone className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  onStartCall(
+                    'video',
+                    headerTitle,
+                    peerProfile?.photoURL || chatIndex?.photoURL,
+                    peerProfile?.avatarSeed
+                  )
+                }
+                title="Video Call"
+                aria-label="Video Call"
+                className="min-w-[38px] min-h-[38px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <Video className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          {!isSaved && onClearChat && (
+            <button
+              type="button"
+              onClick={() => void onClearChat(conversationId)}
+              title="Clear unsaved chat"
+              aria-label="Clear unsaved chat"
+              className="min-w-[38px] min-h-[38px] rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <Eraser className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -783,7 +894,7 @@ export function ChatWindow({
             }}
             title="Search in chat"
             aria-label="Search in chat"
-            className={`min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+            className={`min-w-[38px] min-h-[38px] rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
               showSearchBar
                 ? theme.accentBgSoft + ' ' + theme.accentText
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -797,7 +908,7 @@ export function ChatWindow({
             onClick={onToggleDetails}
             title="Chat details"
             aria-label="Toggle chat details"
-            className={`min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+            className={`min-w-[38px] min-h-[38px] rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
               showDetails
                 ? theme.accentBgSoft + ' ' + theme.accentText
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -807,6 +918,12 @@ export function ChatWindow({
           </button>
         </div>
       </header>
+
+      {screenshotBanner && (
+        <div className="px-4 py-2 bg-[#FFFC00] text-slate-950 text-xs font-bold text-center shrink-0">
+          Screenshot taken! Chat notified.
+        </div>
+      )}
 
       {showSearchBar && (
         <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-[#F4F6F9] dark:bg-[#121824] flex items-center gap-2 shrink-0">
@@ -910,6 +1027,14 @@ export function ChatWindow({
               !msg.imageData &&
               msg.text.trim().length <= 4;
 
+            const isBitmojiSticker =
+              !msg.deleted &&
+              msg.kind === 'sticker' &&
+              !msg.imageData &&
+              msg.text.trim().length > 4;
+
+            const isSystemNotice = !msg.deleted && msg.kind === 'system';
+
             const isSnap = !msg.deleted && msg.kind === 'snap';
             const isVideoSnap = msg.mediaType === 'video';
             const isVoice = !msg.deleted && msg.kind === 'voice';
@@ -945,6 +1070,23 @@ export function ChatWindow({
               : 'rounded-2xl';
 
             const senderProfile = profilesByUid[msg.senderId];
+
+            if (isSystemNotice) {
+              const isScreenshot = msg.text.toLowerCase().includes('screenshot');
+              return (
+                <div key={msg.id} className="my-3 flex items-center justify-center">
+                  <span
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                      isScreenshot
+                        ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {msg.text}
+                  </span>
+                </div>
+              );
+            }
 
             return (
               <div key={msg.id}>
@@ -1218,6 +1360,24 @@ export function ChatWindow({
                           />
                         )}
                       </div>
+                    ) : isBitmojiSticker ? (
+                      <div
+                        onPointerDown={() => startLongPress(msg)}
+                        onPointerUp={cancelLongPress}
+                        onPointerLeave={cancelLongPress}
+                        onPointerCancel={cancelLongPress}
+                        className="px-3 py-2 rounded-2xl bg-[#FFFC00] text-slate-950 border border-black/10 shadow-xs flex items-center gap-2.5 select-none"
+                      >
+                        <Avatar
+                          name={senderProfile?.displayName || msg.senderName}
+                          photoURL={senderProfile?.photoURL || msg.senderPhotoURL}
+                          avatarSeed={senderProfile?.avatarSeed}
+                          size="sm"
+                        />
+                        <span className="text-sm font-extrabold tracking-tight">
+                          {msg.text}
+                        </span>
+                      </div>
                     ) : isSticker ? (
                       <button
                         type="button"
@@ -1268,21 +1428,31 @@ export function ChatWindow({
                         }`}
                       >
                         {msg.imageData && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenImageLightbox(msg.imageData);
-                            }}
-                            className="block max-w-[280px] sm:max-w-[320px] cursor-pointer"
-                          >
-                            <img
+                          msg.mediaType === 'video' ? (
+                            <video
                               src={msg.imageData}
-                              alt="Shared attachment"
-                              referrerPolicy="no-referrer"
-                              className="w-full max-h-[320px] object-cover block"
+                              controls
+                              playsInline
+                              onClick={(e) => e.stopPropagation()}
+                              className="max-w-[280px] sm:max-w-[320px] max-h-[320px] bg-black block"
                             />
-                          </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenImageLightbox(msg.imageData);
+                              }}
+                              className="block max-w-[280px] sm:max-w-[320px] cursor-pointer"
+                            >
+                              <img
+                                src={msg.imageData}
+                                alt="Shared attachment"
+                                referrerPolicy="no-referrer"
+                                className="w-full max-h-[320px] object-cover block"
+                              />
+                            </button>
+                          )
                         )}
 
                         {msg.text && (
@@ -1556,15 +1726,27 @@ export function ChatWindow({
 
         {pendingImage && (
           <div className="mb-2.5 relative inline-block">
-            <img
-              src={pendingImage}
-              alt="Pending attachment"
-              className="h-24 w-auto rounded-xl border border-slate-200 dark:border-slate-700 object-cover"
-            />
+            {pendingMediaType === 'video' ? (
+              <video
+                src={pendingImage}
+                controls
+                playsInline
+                className="h-28 w-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-black"
+              />
+            ) : (
+              <img
+                src={pendingImage}
+                alt="Pending attachment"
+                className="h-24 w-auto rounded-xl border border-slate-200 dark:border-slate-700 object-cover"
+              />
+            )}
             <button
               type="button"
-              onClick={() => setPendingImage('')}
-              aria-label="Remove image"
+              onClick={() => {
+                setPendingImage('');
+                setPendingMediaType('photo');
+              }}
+              aria-label="Remove attachment"
               className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center shadow cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
@@ -1578,7 +1760,7 @@ export function ChatWindow({
 
         {showEmojiPicker && (
           <div className="mb-2.5 p-2.5 rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 shadow-lg max-w-xs">
-            <div className="grid grid-cols-2 gap-1 p-1 mb-2 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+            <div className="grid grid-cols-3 gap-1 p-1 mb-2 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
               <button
                 type="button"
                 onClick={() => setPickerTab('emoji')}
@@ -1601,26 +1783,60 @@ export function ChatWindow({
               >
                 Stickers
               </button>
+              <button
+                type="button"
+                onClick={() => setPickerTab('bitmoji')}
+                className={`h-7 text-xs font-semibold rounded-lg cursor-pointer ${
+                  pickerTab === 'bitmoji'
+                    ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
+                    : 'text-slate-500'
+                }`}
+              >
+                Bitmoji
+              </button>
             </div>
-            <div className="grid grid-cols-8 gap-1">
-              {(pickerTab === 'emoji' ? EMOJI_PICKER_GRID : SNAP_STICKER_GRID).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => {
-                    if (pickerTab === 'stickers') {
-                      void handleSendSticker(item);
-                    } else {
-                      handleDraftChange(draftText + item);
-                      textareaRef.current?.focus();
-                    }
-                  }}
-                  className="h-9 rounded-lg hover:bg-[#F4F6F9] dark:hover:bg-slate-800 text-lg flex items-center justify-center cursor-pointer"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+            {pickerTab === 'bitmoji' ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                {BITMOJI_STICKER_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => void handleSendSticker(`${item.emoji} ${item.label}`)}
+                    className="px-2.5 py-2 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/45 border border-[#FFFC00]/50 flex items-center gap-2 text-left cursor-pointer"
+                  >
+                    <Avatar
+                      name={currentUser.displayName}
+                      photoURL={currentUser.photoURL}
+                      avatarSeed={currentUser.avatarSeed}
+                      size="xs"
+                    />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {item.emoji} {item.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-8 gap-1">
+                {(pickerTab === 'emoji' ? EMOJI_PICKER_GRID : SNAP_STICKER_GRID).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => {
+                      if (pickerTab === 'stickers') {
+                        void handleSendSticker(item);
+                      } else {
+                        handleDraftChange(draftText + item);
+                        textareaRef.current?.focus();
+                      }
+                    }}
+                    className="h-9 rounded-lg hover:bg-[#F4F6F9] dark:hover:bg-slate-800 text-lg flex items-center justify-center cursor-pointer"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1628,7 +1844,7 @@ export function ChatWindow({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             onChange={handleSelectImage}
             className="hidden"
           />
@@ -1648,8 +1864,8 @@ export function ChatWindow({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                title="Send saved photo"
-                aria-label="Send saved photo"
+                title="Send photo or video"
+                aria-label="Send photo or video"
                 className={`min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center transition-colors cursor-pointer shrink-0 ${theme.accentText} hover:bg-[#F4F6F9] dark:hover:bg-slate-800`}
               >
                 <ImageIcon className="w-5 h-5" />

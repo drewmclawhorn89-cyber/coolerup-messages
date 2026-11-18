@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronUp, Eye, Send, Volume2, VolumeX, X } from 'lucide-react';
+import { ChevronUp, Eye, Heart, Send, Share2, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { formatConversationTime } from '../lib/dateFormat';
 import type { PublicProfile, Story } from '../types/messenger';
 import { Avatar } from './Avatar';
@@ -9,6 +9,8 @@ interface StoryViewerModalProps {
   currentUser: PublicProfile;
   profilesByUid: Record<string, PublicProfile>;
   onMarkViewed: (storyId: string) => void;
+  onToggleLike?: (story: Story) => Promise<void>;
+  onDeleteStory?: (storyId: string) => Promise<void>;
   onReplyToAuthor: (authorId: string, replyText: string) => Promise<void>;
   onClose: () => void;
 }
@@ -18,6 +20,8 @@ export function StoryViewerModal({
   currentUser,
   profilesByUid,
   onMarkViewed,
+  onToggleLike,
+  onDeleteStory,
   onReplyToAuthor,
   onClose,
 }: StoryViewerModalProps) {
@@ -28,8 +32,11 @@ export function StoryViewerModal({
   const [showViewersSheet, setShowViewersSheet] = useState(false);
   const [sendingReply, setSendingReply] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [sharedNotice, setSharedNotice] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const replyInputRef = useRef<HTMLInputElement | null>(null);
+  const swipeStartYRef = useRef<number | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const onMarkViewedRef = useRef(onMarkViewed);
@@ -103,6 +110,7 @@ export function StoryViewerModal({
   if (!activeStory) return null;
 
   const isOwnStory = activeStory.authorId === currentUser.uid;
+  const likedByMe = (activeStory.likedBy || []).includes(currentUser.uid);
   const viewers = activeStory.viewerIds.map((uid) => ({
     uid,
     profile: profilesByUid[uid],
@@ -121,25 +129,51 @@ export function StoryViewerModal({
     }
   };
 
+  const handleShareStory = async () => {
+    const shareUrl = `${window.location.origin}/?chat=${encodeURIComponent(activeStory.authorHandle)}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${activeStory.authorName}'s Story`,
+          text: activeStory.caption || 'Check out this Story on CoolerUp Messages!',
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+      setSharedNotice(true);
+      setTimeout(() => setSharedNotice(false), 1800);
+    } catch {
+      // Share cancelled
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+      onPointerDown={(e) => {
+        swipeStartYRef.current = e.clientY;
+      }}
+      onPointerUp={(e) => {
+        if (swipeStartYRef.current !== null && swipeStartYRef.current - e.clientY > 65) {
+          if (isOwnStory) {
+            setShowViewersSheet(true);
+          } else {
+            replyInputRef.current?.focus();
+          }
+        }
+        swipeStartYRef.current = null;
+      }}
+    >
       <div className="relative w-full h-full sm:max-w-[440px] sm:max-h-[820px] sm:rounded-3xl overflow-hidden bg-black flex flex-col">
         {/* Segmented Progress Bars + Header */}
         <div className="absolute top-0 left-0 right-0 z-20 p-3 bg-gradient-to-b from-black/75 to-transparent">
           <div className="flex items-center gap-1 mb-3">
             {stories.map((s, idx) => (
-              <div
-                key={s.id}
-                className="flex-1 h-1 rounded-full bg-white/30 overflow-hidden"
-              >
+              <div key={s.id} className="flex-1 h-1 rounded-full bg-white/30 overflow-hidden">
                 <div
                   style={{
-                    width:
-                      idx < index
-                        ? '100%'
-                        : idx === index
-                        ? `${progress}%`
-                        : '0%',
+                    width: idx < index ? '100%' : idx === index ? `${progress}%` : '0%',
                   }}
                   className="h-full bg-white transition-[width] duration-75"
                 />
@@ -165,6 +199,23 @@ export function StoryViewerModal({
             </div>
 
             <div className="flex items-center gap-1.5">
+              {isOwnStory && onDeleteStory && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await onDeleteStory(activeStory.id);
+                    if (stories.length <= 1) {
+                      onClose();
+                    } else if (index >= stories.length - 1) {
+                      setIndex((i) => Math.max(0, i - 1));
+                    }
+                  }}
+                  aria-label="Delete story"
+                  className="w-9 h-9 rounded-full bg-black/50 hover:bg-rose-600/80 text-white flex items-center justify-center cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
               {isVideo && (
                 <button
                   type="button"
@@ -234,21 +285,35 @@ export function StoryViewerModal({
           />
         </div>
 
-        {/* Footer: Viewers List (own) OR Quick Chat Reply (friends) */}
-        <div className="p-3.5 bg-gradient-to-t from-black/90 via-black/70 to-transparent">
+        {/* Footer: Viewers List (own) OR Swipe-up Reply + Heart + Send (friends) */}
+        <div className="p-3.5 bg-gradient-to-t from-black/90 via-black/70 to-transparent space-y-2">
+          {sharedNotice && (
+            <p className="text-center text-xs font-bold text-[#FFFC00]">Story link copied!</p>
+          )}
           {isOwnStory ? (
-            <button
-              type="button"
-              onClick={() => setShowViewersSheet((v) => !v)}
-              className="w-full flex items-center justify-center gap-2 text-xs text-white/95 py-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer font-mono-tabular"
-            >
-              <Eye className="w-4 h-4" />
-              <span>Viewed by {activeStory.viewerIds.length}</span>
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setShowViewersSheet((v) => !v)}
+                className="flex-1 flex items-center justify-center gap-2 text-xs text-white/95 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors cursor-pointer font-mono-tabular"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Viewed by {activeStory.viewerIds.length}</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleShareStory()}
+                aria-label="Share story"
+                className="w-10 h-9 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <input
+                ref={replyInputRef}
                 type="text"
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
@@ -257,9 +322,32 @@ export function StoryViewerModal({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSendReply();
                 }}
-                placeholder={`Reply to ${activeStory.authorName.split(' ')[0]}...`}
+                placeholder={`Swipe up or reply to ${activeStory.authorName.split(' ')[0]}...`}
                 className="flex-1 h-10 px-4 rounded-full bg-white/15 border border-white/20 text-sm text-white placeholder:text-white/60 outline-none focus:border-white/50"
               />
+              {onToggleLike && (
+                <button
+                  type="button"
+                  onClick={() => void onToggleLike(activeStory)}
+                  aria-label="Heart story"
+                  className="h-10 px-3 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <Heart
+                    className={`w-4 h-4 ${likedByMe ? 'fill-rose-500 text-rose-500' : 'text-white'}`}
+                  />
+                  {(activeStory.likedBy?.length || 0) > 0 && (
+                    <span className="text-xs font-mono-tabular">{activeStory.likedBy?.length}</span>
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleShareStory()}
+                aria-label="Share story"
+                className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer shrink-0"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
               <button
                 type="button"
                 disabled={!replyText.trim() || sendingReply}
