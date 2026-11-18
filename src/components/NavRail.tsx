@@ -139,9 +139,10 @@ export function NavRail({
           type="button"
           onClick={() => onSelectTab('video')}
           aria-label="Open video feed"
-          className="fixed bottom-[4.5rem] right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg ring-1 ring-white/20 md:hidden"
+          className="fixed bottom-[4.25rem] right-4 z-40 flex h-12 items-center gap-2 rounded-full bg-slate-950 px-4 text-white shadow-lg ring-1 ring-white/20 md:hidden"
         >
           <Clapperboard className="h-5 w-5" />
+          <span className="text-sm font-semibold">Videos</span>
         </button>
       )}
       {activeTab === 'video' && <VideoFeed onClose={() => onSelectTab('chats')} />}
