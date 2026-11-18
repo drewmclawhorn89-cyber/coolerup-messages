@@ -25,6 +25,7 @@ import type {
   PrivateUserInfo,
   PublicProfile,
   SnapStatus,
+  SpotlightVideo,
 } from '../types/messenger';
 
 export function buildDirectConversationId(uidA: string, uidB: string): string {
@@ -978,6 +979,248 @@ export async function deleteStory(storyId: string): Promise<void> {
   const path = `stories/${storyId}`;
   try {
     await deleteDoc(doc(db, 'stories', storyId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// --- Spotlight Video Feed ---
+
+const resolvedVideoUrlCache = new Map<string, string>();
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const commaIdx = dataUrl.indexOf(',');
+  if (commaIdx === -1) {
+    throw new Error('Malformed video data.');
+  }
+  const header = dataUrl.slice(0, commaIdx);
+  const b64 = dataUrl.slice(commaIdx + 1);
+  const mimeMatch = header.match(/data:([^;]+)/);
+  const mimeType = mimeMatch?.[1] || 'video/webm';
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+export async function resolveSpotlightVideoSrc(video: SpotlightVideo): Promise<string> {
+  if (video.videoData) {
+    return video.videoData;
+  }
+
+  const cached = resolvedVideoUrlCache.get(video.id);
+  if (cached) {
+    return cached;
+  }
+
+  const count = video.chunkCount || 0;
+  if (count <= 0) {
+    throw new Error('Spotlight video media missing.');
+  }
+
+  const path = `spotlightVideos/${video.id}/chunks`;
+  try {
+    const chunkSnaps = await Promise.all(
+      Array.from({ length: count }, (_, idx) =>
+        getDoc(doc(db, 'spotlightVideos', video.id, 'chunks', String(idx)))
+      )
+    );
+    const fullDataUrl = chunkSnaps
+      .map((snap) => (snap.exists() ? String(snap.data().data || '') : ''))
+      .join('');
+    if (!fullDataUrl) {
+      throw new Error('Could not assemble 720p video chunks.');
+    }
+    const blob = dataUrlToBlob(fullDataUrl);
+    const objectUrl = URL.createObjectURL(blob);
+    resolvedVideoUrlCache.set(video.id, objectUrl);
+    return objectUrl;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
+export async function createSpotlightVideo(params: {
+  author: PublicProfile;
+  videoData: string;
+  caption: string;
+  soundTitle?: string;
+  soundTrackId?: string;
+  resolution?: string;
+}): Promise<string> {
+  const { author, videoData, caption, soundTitle, soundTrackId = 'original', resolution = '720p' } = params;
+  const videoRef = doc(collection(db, 'spotlightVideos'));
+  const videoId = videoRef.id;
+  const path = `spotlightVideos/${videoId}`;
+
+  const cleanSound =
+    (soundTitle || '').trim().slice(0, LIMITS.SOUND_TITLE_MAX) ||
+    `Original Sound · ${author.displayName.split(' ')[0]}`;
+  const cleanSoundId = soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX);
+  const cleanResolution = resolution.slice(0, LIMITS.RESOLUTION_MAX);
+
+  try {
+    if (videoData.length <= LIMITS.SPOTLIGHT_INLINE_MAX) {
+      const batch = writeBatch(db);
+      batch.set(videoRef, {
+        id: videoId,
+        authorId: author.uid,
+        authorName: author.displayName.slice(0, LIMITS.DISPLAY_NAME_MAX),
+        authorHandle: author.handle.slice(0, LIMITS.HANDLE_MAX),
+        authorPhotoURL: author.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
+        authorAvatarSeed: (author.avatarSeed || '').slice(0, LIMITS.AVATAR_SEED_MAX),
+        videoData,
+        chunkCount: 0,
+        resolution: cleanResolution,
+        soundTrackId: cleanSoundId,
+        caption: caption.trim().slice(0, LIMITS.STORY_CAPTION_MAX),
+        soundTitle: cleanSound,
+        likedBy: [],
+        viewCount: 0,
+        isPublic: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      batch.update(doc(db, 'profiles', author.uid), {
+        snapScore: increment(1),
+        updatedAt: serverTimestamp(),
+      });
+
+      await batch.commit();
+      return videoId;
+    }
+
+    // Multi-chunk path for true 720p HD videos with music (> 550 KB)
+    const chunks: string[] = [];
+    for (let offset = 0; offset < videoData.length; offset += LIMITS.SPOTLIGHT_CHUNK_MAX) {
+      chunks.push(videoData.slice(offset, offset + LIMITS.SPOTLIGHT_CHUNK_MAX));
+    }
+
+    if (chunks.length > LIMITS.SPOTLIGHT_MAX_CHUNKS) {
+      throw new Error('720p video is too large. Keep clips around 10–15 seconds.');
+    }
+
+    await setDoc(videoRef, {
+      id: videoId,
+      authorId: author.uid,
+      authorName: author.displayName.slice(0, LIMITS.DISPLAY_NAME_MAX),
+      authorHandle: author.handle.slice(0, LIMITS.HANDLE_MAX),
+      authorPhotoURL: author.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
+      authorAvatarSeed: (author.avatarSeed || '').slice(0, LIMITS.AVATAR_SEED_MAX),
+      videoData: '',
+      chunkCount: chunks.length,
+      resolution: cleanResolution,
+      soundTrackId: cleanSoundId,
+      caption: caption.trim().slice(0, LIMITS.STORY_CAPTION_MAX),
+      soundTitle: cleanSound,
+      likedBy: [],
+      viewCount: 0,
+      isPublic: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Write chunks cleanly in small groups to stay well below Firestore batch payload caps
+    for (let i = 0; i < chunks.length; i += 3) {
+      const slice = chunks.slice(i, i + 3);
+      await Promise.all(
+        slice.map((chunkData, subIdx) => {
+          const chunkIdx = i + subIdx;
+          return setDoc(doc(db, 'spotlightVideos', videoId, 'chunks', String(chunkIdx)), {
+            id: String(chunkIdx),
+            videoId,
+            authorId: author.uid,
+            index: chunkIdx,
+            data: chunkData,
+            createdAt: serverTimestamp(),
+          });
+        })
+      );
+    }
+
+    const publishBatch = writeBatch(db);
+    publishBatch.update(videoRef, {
+      isPublic: true,
+      updatedAt: serverTimestamp(),
+    });
+    publishBatch.update(doc(db, 'profiles', author.uid), {
+      snapScore: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+    await publishBatch.commit();
+
+    return videoId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function toggleLikeSpotlightVideo(
+  videoId: string,
+  uid: string,
+  currentLikedBy: string[] = []
+): Promise<void> {
+  const path = `spotlightVideos/${videoId}`;
+  const isLiked = currentLikedBy.includes(uid);
+  try {
+    await updateDoc(doc(db, 'spotlightVideos', videoId), {
+      likedBy: isLiked ? arrayRemove(uid) : arrayUnion(uid),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function incrementSpotlightView(videoId: string): Promise<void> {
+  const path = `spotlightVideos/${videoId}`;
+  try {
+    await updateDoc(doc(db, 'spotlightVideos', videoId), {
+      viewCount: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    if (String(error).includes('Missing or insufficient permissions')) return;
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function updateSpotlightVideoSound(
+  videoId: string,
+  soundTrackId: string,
+  soundTitle: string
+): Promise<void> {
+  const path = `spotlightVideos/${videoId}`;
+  try {
+    await updateDoc(doc(db, 'spotlightVideos', videoId), {
+      soundTrackId: soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX),
+      soundTitle: soundTitle.trim().slice(0, LIMITS.SOUND_TITLE_MAX),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteSpotlightVideo(videoId: string, chunkCount = 0): Promise<void> {
+  const path = `spotlightVideos/${videoId}`;
+  try {
+    if (chunkCount > 0) {
+      await Promise.all(
+        Array.from({ length: chunkCount }, (_, idx) =>
+          deleteDoc(doc(db, 'spotlightVideos', videoId, 'chunks', String(idx)))
+        )
+      );
+    }
+    await deleteDoc(doc(db, 'spotlightVideos', videoId));
+    const cachedUrl = resolvedVideoUrlCache.get(videoId);
+    if (cachedUrl) {
+      URL.revokeObjectURL(cachedUrl);
+      resolvedVideoUrlCache.delete(videoId);
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }

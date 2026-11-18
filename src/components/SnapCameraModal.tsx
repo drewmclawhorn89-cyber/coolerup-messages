@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
   Check,
+  Film,
   ImagePlus,
+  Music2,
   Pencil,
   RefreshCw,
   Send,
@@ -12,10 +14,24 @@ import {
   Type,
   Undo2,
   Video,
+  Volume2,
+  VolumeX,
   X,
   Zap,
 } from 'lucide-react';
-import { blobToBoundedDataUrl, compressCanvasToDataUrl, LIMITS } from '../lib/validation';
+import {
+  resumeSpotlightAudioContext,
+  SPOTLIGHT_SOUND_TRACKS,
+  startSpotlightTrack,
+  stopSpotlightTrack,
+} from '../lib/spotlightMusic';
+import {
+  blobToBoundedDataUrl,
+  compressCanvasToDataUrl,
+  LIMITS,
+  prepare720pVideoDataUrl,
+  unlockVideoTranscodeAudio,
+} from '../lib/validation';
 import type { PublicProfile, UserChatIndex } from '../types/messenger';
 import { Avatar } from './Avatar';
 
@@ -56,7 +72,7 @@ interface SnapCameraModalProps {
   chats: UserChatIndex[];
   profiles: PublicProfile[];
   preselectedConversationId?: string | null;
-  initialMode?: 'snap' | 'story';
+  initialMode?: 'snap' | 'story' | 'spotlight';
   onClose: () => void;
   onSendSnapToConversations: (params: {
     conversationIds: string[];
@@ -66,6 +82,9 @@ interface SnapCameraModalProps {
     caption: string;
     durationSec: number;
     postToStory: boolean;
+    postToSpotlight?: boolean;
+    soundTrackId?: string;
+    soundTitle?: string;
   }) => Promise<void>;
 }
 
@@ -79,6 +98,7 @@ export function SnapCameraModal({
   onSendSnapToConversations,
 }: SnapCameraModalProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -92,7 +112,9 @@ export function SnapCameraModal({
   const [captureTimerSec, setCaptureTimerSec] = useState<number>(0);
   const [countdownLeft, setCountdownLeft] = useState<number | null>(null);
 
-  const [captureKind, setCaptureKind] = useState<'photo' | 'video'>('photo');
+  const [captureKind, setCaptureKind] = useState<'photo' | 'video'>(
+    initialMode === 'spotlight' ? 'video' : 'photo'
+  );
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSec, setRecordingSec] = useState(0);
 
@@ -120,6 +142,10 @@ export function SnapCameraModal({
   const [durationSec, setDurationSec] = useState<number>(5);
   const [showSendPicker, setShowSendPicker] = useState(false);
   const [postToStory, setPostToStory] = useState(initialMode === 'story');
+  const [postToSpotlight, setPostToSpotlight] = useState(initialMode === 'spotlight');
+  const [selectedSoundTrackId, setSelectedSoundTrackId] = useState<string>('original');
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [previewMuted, setPreviewMuted] = useState(false);
   const [selectedConvIds, setSelectedConvIds] = useState<string[]>(
     preselectedConversationId ? [preselectedConversationId] : []
   );
@@ -143,14 +169,34 @@ export function SnapCameraModal({
 
     async function startCamera() {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setCameraError('Camera unavailable here — upload a photo below to create a Snap.');
+        setCameraError('Camera unavailable here — upload a 720p photo or video below.');
         return;
       }
+      const isPortraitViewport = window.innerHeight >= window.innerWidth;
+      const videoConstraint: MediaTrackConstraints = {
+        facingMode,
+        width: { ideal: isPortraitViewport ? 720 : 1280 },
+        height: { ideal: isPortraitViewport ? 1280 : 720 },
+        frameRate: { ideal: 30 },
+      };
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode, width: { ideal: 720 }, height: { ideal: 960 } },
-          audio: captureKind === 'video',
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: videoConstraint,
+            audio:
+              captureKind === 'video'
+                ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                : false,
+          });
+        } catch {
+          // Fallback to video-only if microphone permission was denied
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: videoConstraint,
+            audio: false,
+          });
+        }
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -163,7 +209,7 @@ export function SnapCameraModal({
         }
       } catch {
         if (!cancelled) {
-          setCameraError('Camera permission not granted — upload a photo to create a Snap.');
+          setCameraError('Camera permission not granted — upload a photo or 720p video below.');
         }
       }
     }
@@ -178,6 +224,42 @@ export function SnapCameraModal({
       }
     };
   }, [facingMode, capturedMedia, captureKind]);
+
+  // Imperatively sync muted & volume on captured video preview and fallback safely if autoplay blocked
+  useEffect(() => {
+    const el = previewVideoRef.current;
+    if (!el || capturedMedia?.mediaType !== 'video') return;
+    let cancelled = false;
+    el.muted = previewMuted;
+    el.volume = 1;
+    void el.play().catch(() => {
+      if (!cancelled && !previewMuted) {
+        el.muted = true;
+        setPreviewMuted(true);
+        void el.play().catch(() => {});
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [capturedMedia, previewMuted]);
+
+  // Sync background music track preview when reviewing captured video
+  useEffect(() => {
+    if (
+      capturedMedia?.mediaType === 'video' &&
+      !previewMuted &&
+      !showSendPicker &&
+      selectedSoundTrackId !== 'original'
+    ) {
+      startSpotlightTrack(selectedSoundTrackId);
+    } else {
+      stopSpotlightTrack();
+    }
+    return () => {
+      stopSpotlightTrack();
+    };
+  }, [capturedMedia, previewMuted, showSendPicker, selectedSoundTrackId]);
 
   // Try applying hardware torch constraint when flash toggles
   useEffect(() => {
@@ -206,7 +288,7 @@ export function SnapCameraModal({
     return () => clearTimeout(timer);
   });
 
-  // Recording elapsed seconds timer (cap 5 seconds for reliable Firestore payload size)
+  // Recording elapsed seconds timer (up to 12 seconds at 720p HD with audio)
   useEffect(() => {
     if (!isRecording) {
       setRecordingSec(0);
@@ -214,9 +296,9 @@ export function SnapCameraModal({
     }
     const id = setInterval(() => {
       setRecordingSec((prev) => {
-        if (prev >= 4) {
+        if (prev >= 11) {
           recorderRef.current?.stop();
-          return 5;
+          return 12;
         }
         return prev + 1;
       });
@@ -261,8 +343,8 @@ export function SnapCameraModal({
     }
 
     const vw = video.videoWidth || 720;
-    const vh = video.videoHeight || 960;
-    const maxDim = 960;
+    const vh = video.videoHeight || 1280;
+    const maxDim = 1280;
     const scale = Math.min(1, maxDim / Math.max(vw, vh));
     const w = Math.round(vw * scale);
     const h = Math.round(vh * scale);
@@ -302,13 +384,16 @@ export function SnapCameraModal({
     }
 
     const chunks: Blob[] = [];
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-      ? 'video/webm;codecs=vp8'
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+      ? 'video/webm;codecs=vp8,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
       : 'video/webm';
 
     const recorder = new MediaRecorder(stream, {
       mimeType,
-      videoBitsPerSecond: 380_000,
+      videoBitsPerSecond: 1_500_000,
+      audioBitsPerSecond: 128_000,
     });
 
     recorder.ondataavailable = (ev) => {
@@ -319,7 +404,11 @@ export function SnapCameraModal({
       setIsRecording(false);
       const blob = new Blob(chunks, { type: mimeType });
       try {
-        const dataUrl = await blobToBoundedDataUrl(blob, 'Video Snap');
+        const dataUrl = await blobToBoundedDataUrl(
+          blob,
+          '720p Video Snap',
+          LIMITS.SPOTLIGHT_TOTAL_MAX
+        );
         setCapturedMedia({ dataUrl, mediaType: 'video' });
       } catch (err) {
         setSendError(err instanceof Error ? err.message : 'Video Snap too large.');
@@ -333,6 +422,7 @@ export function SnapCameraModal({
 
   const handleShutterClick = () => {
     if (!cameraReady) return;
+    void resumeSpotlightAudioContext();
     if (isRecording) {
       executeVideoToggle();
       return;
@@ -353,6 +443,18 @@ export function SnapCameraModal({
     e.target.value = '';
     if (!file) return;
 
+    if (file.type.startsWith('video/')) {
+      try {
+        const videoUrl = await prepare720pVideoDataUrl(file);
+        setCapturedMedia({ dataUrl: videoUrl, mediaType: 'video' });
+        setStrokes([]);
+        setStickers([]);
+      } catch (err) {
+        setCameraError(err instanceof Error ? err.message : 'Unable to load selected video.');
+      }
+      return;
+    }
+
     const objUrl = URL.createObjectURL(file);
     try {
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -361,7 +463,7 @@ export function SnapCameraModal({
         el.onerror = () => reject(new Error('Invalid image'));
         el.src = objUrl;
       });
-      const maxDim = 960;
+      const maxDim = 1280;
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
@@ -504,10 +606,17 @@ export function SnapCameraModal({
     );
   }, [profiles, activeChats, currentUser.uid]);
 
+  const selectedTrackMeta = useMemo(
+    () => SPOTLIGHT_SOUND_TRACKS.find((t) => t.id === selectedSoundTrackId) || SPOTLIGHT_SOUND_TRACKS[0],
+    [selectedSoundTrackId]
+  );
+
   const handleConfirmSend = async () => {
     if (sending) return;
-    if (!postToStory && selectedConvIds.length === 0 && selectedPeerUids.length === 0) {
-      setSendError('Select My Story or at least one chat to send your Snap.');
+    const isVideo = capturedMedia?.mediaType === 'video';
+    const shouldSpotlight = isVideo && postToSpotlight;
+    if (!postToStory && !shouldSpotlight && selectedConvIds.length === 0 && selectedPeerUids.length === 0) {
+      setSendError('Select My Story, Spotlight, or at least one chat to send your Snap.');
       return;
     }
 
@@ -524,6 +633,12 @@ export function SnapCameraModal({
         caption: caption.trim(),
         durationSec: durationSec === 0 ? 99 : durationSec,
         postToStory,
+        postToSpotlight: shouldSpotlight,
+        soundTrackId: selectedSoundTrackId,
+        soundTitle:
+          selectedSoundTrackId === 'original'
+            ? `Original Sound · ${currentUser.displayName.split(' ')[0]}`
+            : selectedTrackMeta.title,
       });
       onClose();
     } catch (err) {
@@ -553,6 +668,9 @@ export function SnapCameraModal({
                 setStickers([]);
                 setCaption('');
                 setShowCaptionInput(false);
+                setSelectedSoundTrackId('original');
+                setShowSoundPicker(false);
+                setPreviewMuted(false);
               } else {
                 onClose();
               }
@@ -659,6 +777,40 @@ export function SnapCameraModal({
                   <Undo2 className="w-4 h-4" />
                 </button>
               )}
+              {capturedMedia.mediaType === 'video' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void resumeSpotlightAudioContext();
+                      setPreviewMuted((m) => !m);
+                    }}
+                    title={previewMuted ? 'Unmute video & music' : 'Mute preview'}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer ${
+                      !previewMuted ? 'bg-[#FFFC00] text-slate-950' : 'bg-black/50 text-white'
+                    }`}
+                  >
+                    {previewMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void resumeSpotlightAudioContext();
+                      setShowCaptionInput(false);
+                      setShowSoundPicker((v) => !v);
+                    }}
+                    title="Choose Music Track"
+                    className={`h-9 px-2.5 rounded-full flex items-center gap-1 text-xs font-semibold backdrop-blur-xs cursor-pointer ${
+                      showSoundPicker || selectedSoundTrackId !== 'original'
+                        ? 'bg-[#FFFC00] text-slate-950'
+                        : 'bg-black/50 text-white'
+                    }`}
+                  >
+                    <Music2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Music</span>
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -710,6 +862,55 @@ export function SnapCameraModal({
           </div>
         )}
 
+        {/* Spotlight Music Picker Overlay */}
+        {capturedMedia?.mediaType === 'video' && showSoundPicker && (
+          <div className="absolute top-16 left-4 right-4 z-20 p-3 rounded-2xl bg-black/85 border border-white/15 backdrop-blur-md space-y-1.5">
+            <div className="flex items-center justify-between px-1 pb-1">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Music2 className="w-3.5 h-3.5 text-[#FFFC00]" />
+                <span>Select Music Track</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSoundPicker(false)}
+                className="text-xs text-[#FFFC00] font-semibold cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+            {SPOTLIGHT_SOUND_TRACKS.map((track) => {
+              const selected = track.id === selectedSoundTrackId;
+              return (
+                <button
+                  key={track.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSoundTrackId(track.id);
+                    setPreviewMuted(false);
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl flex items-center justify-between text-left cursor-pointer ${
+                    selected
+                      ? 'bg-[#FFFC00] text-slate-950'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">{track.title}</p>
+                    <p
+                      className={`text-[11px] truncate ${
+                        selected ? 'text-slate-800' : 'text-white/65'
+                      }`}
+                    >
+                      {track.subtitle}
+                    </p>
+                  </div>
+                  {selected && <Check className="w-4 h-4 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Viewfinder or Captured Media Canvas */}
         <div
           ref={previewContainerRef}
@@ -748,7 +949,7 @@ export function SnapCameraModal({
               )}
               {isRecording && (
                 <div className="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-rose-600 text-white text-xs font-mono-tabular font-bold flex items-center gap-1.5">
-                  <span>REC {recordingSec}s / 5s</span>
+                  <span>REC {recordingSec}s / 12s</span>
                 </div>
               )}
               {cameraError && (
@@ -757,18 +958,22 @@ export function SnapCameraModal({
                     <Camera className="w-7 h-7" />
                   </div>
                   <p className="text-sm font-medium text-white mb-2">
-                    Snap Studio
+                    720p Snap Studio
                   </p>
                   <p className="text-xs text-slate-400 max-w-xs mb-5">
                     {cameraError}
                   </p>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      void resumeSpotlightAudioContext();
+                      unlockVideoTranscodeAudio();
+                      fileInputRef.current?.click();
+                    }}
                     className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer"
                   >
                     <ImagePlus className="w-4 h-4" />
-                    <span>Upload Photo for Snap</span>
+                    <span>Upload 720p Photo or Video</span>
                   </button>
                 </div>
               )}
@@ -777,10 +982,13 @@ export function SnapCameraModal({
             <div className="relative w-full h-full flex items-center justify-center bg-black">
               {capturedMedia.mediaType === 'video' ? (
                 <video
+                  ref={previewVideoRef}
                   src={capturedMedia.dataUrl}
                   autoPlay
                   loop
                   playsInline
+                  controls
+                  muted={previewMuted}
                   className="max-w-full max-h-full object-contain"
                 />
               ) : (
@@ -842,7 +1050,7 @@ export function SnapCameraModal({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           onChange={handleUploadFile}
           className="hidden"
         />
@@ -900,8 +1108,12 @@ export function SnapCameraModal({
             <div className="flex items-center justify-around">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title="Upload photo from device"
+                onClick={() => {
+                  void resumeSpotlightAudioContext();
+                  unlockVideoTranscodeAudio();
+                  fileInputRef.current?.click();
+                }}
+                title="Upload photo or 720p video from device"
                 className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
               >
                 <ImagePlus className="w-5 h-5" />
@@ -935,7 +1147,7 @@ export function SnapCameraModal({
             </div>
           </div>
         ) : !showSendPicker ? (
-          <div className="px-4 py-4 bg-black/90 border-t border-slate-800 flex items-center justify-between gap-3">
+          <div className="px-4 py-4 bg-black/90 border-t border-slate-800 flex items-center justify-between gap-2">
             <button
               type="button"
               disabled={sending}
@@ -960,15 +1172,53 @@ export function SnapCameraModal({
                   setSending(false);
                 }
               }}
-              className="h-11 px-4 rounded-xl bg-white/12 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 cursor-pointer"
+              className="h-11 px-3.5 rounded-xl bg-white/12 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <span>+ My Story</span>
             </button>
 
+            {capturedMedia.mediaType === 'video' && (
+              <button
+                type="button"
+                disabled={sending}
+                onClick={async () => {
+                  setPostToSpotlight(true);
+                  setSending(true);
+                  try {
+                    const dataUrl = await flattenSnapToDataUrl();
+                    await onSendSnapToConversations({
+                      conversationIds: [],
+                      directPeerProfiles: [],
+                      imageData: dataUrl,
+                      mediaType: 'video',
+                      caption: caption.trim(),
+                      durationSec: durationSec === 0 ? 5 : durationSec,
+                      postToStory: false,
+                      postToSpotlight: true,
+                      soundTrackId: selectedSoundTrackId,
+                      soundTitle:
+                        selectedSoundTrackId === 'original'
+                          ? `Original Sound · ${currentUser.displayName.split(' ')[0]}`
+                          : selectedTrackMeta.title,
+                    });
+                    onClose();
+                  } catch (err) {
+                    setSendError(err instanceof Error ? err.message : 'Unable to post to Spotlight.');
+                  } finally {
+                    setSending(false);
+                  }
+                }}
+                className="h-11 px-3.5 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Film className="w-3.5 h-3.5" />
+                <span>+ Spotlight</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setShowSendPicker(true)}
-              className="h-11 px-6 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer"
+              className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer ml-auto"
             >
               <span>Send To</span>
               <Send className="w-4 h-4" />
@@ -1025,6 +1275,41 @@ export function SnapCameraModal({
                   {postToStory && <Check className="w-3.5 h-3.5" />}
                 </span>
               </button>
+
+              {capturedMedia?.mediaType === 'video' && (
+                <button
+                  type="button"
+                  onClick={() => setPostToSpotlight((v) => !v)}
+                  className={`w-full px-3 py-2.5 rounded-2xl flex items-center justify-between border transition-colors cursor-pointer ${
+                    postToSpotlight
+                      ? 'border-[#FFFC00] bg-[#FFFC00]/15'
+                      : 'border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-11 h-11 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center shrink-0">
+                      <Film className="w-5 h-5" />
+                    </span>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        Spotlight Feed (Public)
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Post to CoolerUp Video Feed
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center border ${
+                      postToSpotlight
+                        ? 'bg-[#FFFC00] border-[#FFFC00] text-slate-950'
+                        : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                  >
+                    {postToSpotlight && <Check className="w-3.5 h-3.5" />}
+                  </span>
+                </button>
+              )}
 
               <p className="px-2 pt-2 text-xs font-medium text-slate-400">
                 Recent Chats

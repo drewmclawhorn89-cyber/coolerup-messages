@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronUp, Eye, Send, X } from 'lucide-react';
+import { ChevronUp, Eye, Send, Volume2, VolumeX, X } from 'lucide-react';
 import { formatConversationTime } from '../lib/dateFormat';
 import type { PublicProfile, Story } from '../types/messenger';
 import { Avatar } from './Avatar';
@@ -27,7 +27,9 @@ export function StoryViewerModal({
   const [replyFocused, setReplyFocused] = useState(false);
   const [showViewersSheet, setShowViewersSheet] = useState(false);
   const [sendingReply, setSendingReply] = useState(false);
+  const [muted, setMuted] = useState(false);
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const onMarkViewedRef = useRef(onMarkViewed);
@@ -75,10 +77,32 @@ export function StoryViewerModal({
     }
   }, [progress, activeStoryId, index, stories.length]);
 
+  const isVideo = Boolean(
+    activeStory &&
+      (activeStory.mediaType === 'video' || activeStory.imageData.startsWith('data:video'))
+  );
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!isVideo || !el || !activeStoryId) return;
+    let cancelled = false;
+    el.muted = muted;
+    el.volume = 1;
+    void el.play().catch(() => {
+      if (!cancelled && !muted) {
+        el.muted = true;
+        setMuted(true);
+        void el.play().catch(() => {});
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isVideo, activeStoryId, muted]);
+
   if (!activeStory) return null;
 
   const isOwnStory = activeStory.authorId === currentUser.uid;
-  const isVideo = activeStory.mediaType === 'video' || activeStory.imageData.startsWith('data:video');
   const viewers = activeStory.viewerIds.map((uid) => ({
     uid,
     profile: profilesByUid[uid],
@@ -140,14 +164,34 @@ export function StoryViewerModal({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close story"
-              className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {isVideo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !muted;
+                    setMuted(next);
+                    if (videoRef.current) {
+                      videoRef.current.muted = next;
+                      videoRef.current.volume = 1;
+                      void videoRef.current.play().catch(() => {});
+                    }
+                  }}
+                  aria-label={muted ? 'Unmute story video' : 'Mute story video'}
+                  className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center cursor-pointer"
+                >
+                  {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close story"
+                className="w-9 h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -155,10 +199,12 @@ export function StoryViewerModal({
         <div className="relative flex-1 flex items-center justify-center bg-black">
           {isVideo ? (
             <video
+              ref={videoRef}
               src={activeStory.imageData}
               autoPlay
               loop
               playsInline
+              muted={muted}
               className="max-w-full max-h-full object-contain"
             />
           ) : (

@@ -10,7 +10,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { Camera, CircleDot, MessageCircle, Users, X } from 'lucide-react';
+import { Camera, CircleDot, Film, MessageCircle, Users, X } from 'lucide-react';
 import { ChatDetailsDrawer } from './components/ChatDetailsDrawer';
 import { ChatWindow } from './components/ChatWindow';
 import { ConversationList } from './components/ConversationList';
@@ -22,28 +22,36 @@ import { ProfileModal } from './components/ProfileModal';
 import { SignInView } from './components/SignInView';
 import { SnapCameraModal } from './components/SnapCameraModal';
 import { SnapViewerModal } from './components/SnapViewerModal';
+import { SpotlightFeedPanel } from './components/SpotlightFeedPanel';
 import { StoriesPanel } from './components/StoriesPanel';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { LIMITS, transcodeVideoFileToBoundedDataUrl } from './lib/validation';
 import {
   addMemberToGroupChat,
   consumeAndDeleteSnapMedia,
   createGroupChat,
   createOrOpenDirectChat,
+  createSpotlightVideo,
   createStory,
+  deleteSpotlightVideo,
   deleteStory,
   deleteUserChat,
+  incrementSpotlightView,
   leaveGroupChat,
   markSnapReplayed,
   markSnapScreenshotted,
   markStoryViewed,
   renameGroupChat,
+  resolveSpotlightVideoSrc,
   respondToFriendRequest,
   sendFriendRequest,
   sendMessage,
   setUserOnlineStatus,
   syncUserOnSignIn,
+  toggleLikeSpotlightVideo,
   updateConversationAppearance,
+  updateSpotlightVideoSound,
   updateThemePreference,
   updateUserChatFlags,
   updateUserProfile,
@@ -56,6 +64,7 @@ import type {
   NavTab,
   PrivateUserInfo,
   PublicProfile,
+  SpotlightVideo,
   Story,
   UserChatIndex,
 } from './types/messenger';
@@ -76,6 +85,7 @@ export default function App() {
   const [chats, setChats] = useState<UserChatIndex[]>([]);
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
+  const [spotlightVideos, setSpotlightVideos] = useState<SpotlightVideo[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
@@ -93,7 +103,7 @@ export default function App() {
   // Snapchat modals
   const [cameraModalConfig, setCameraModalConfig] = useState<{
     conversationId?: string | null;
-    mode: 'snap' | 'story';
+    mode: 'snap' | 'story' | 'spotlight';
   } | null>(null);
   const [viewingSnap, setViewingSnap] = useState<{
     message: Message;
@@ -125,6 +135,7 @@ export default function App() {
         setChats([]);
         setProfiles([]);
         setStories([]);
+        setSpotlightVideos([]);
         setFriendships([]);
         setActiveConversationId(null);
         setActiveConvData(null);
@@ -207,6 +218,25 @@ export default function App() {
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, 'stories');
+      }
+    );
+    return () => unsub();
+  }, [currentUserProfile?.uid]);
+
+  // Live Spotlight Video Feed subscription
+  useEffect(() => {
+    if (!currentUserProfile?.uid) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'spotlightVideos'), where('isPublic', '==', true), limit(50)),
+      (snap) => {
+        const list = snap.docs.map((d) => d.data() as SpotlightVideo);
+        list.sort(
+          (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+        );
+        setSpotlightVideos(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'spotlightVideos');
       }
     );
     return () => unsub();
@@ -362,16 +392,20 @@ export default function App() {
     caption: string;
     durationSec: number;
     postToStory: boolean;
+    postToSpotlight?: boolean;
+    soundTrackId?: string;
+    soundTitle?: string;
   }) => {
     if (!currentUserProfile) return;
 
-    if (params.postToStory) {
-      await createStory({
+    if (params.postToSpotlight && params.mediaType === 'video') {
+      await createSpotlightVideo({
         author: currentUserProfile,
-        mediaType: params.mediaType,
-        imageData: params.imageData,
+        videoData: params.imageData,
         caption: params.caption,
-        durationSec: params.durationSec >= 90 ? 5 : params.durationSec,
+        soundTitle: params.soundTitle,
+        soundTrackId: params.soundTrackId,
+        resolution: '720p',
       });
     }
 
@@ -379,6 +413,26 @@ export default function App() {
     for (const peer of params.directPeerProfiles) {
       const convId = await createOrOpenDirectChat(currentUserProfile, peer);
       targetConvIds.add(convId);
+    }
+
+    // Ensure single-document Story / DM Snap payloads stay under Firestore's 1MB doc cap while keeping Spotlight 720p full-size
+    let singleDocMedia = params.imageData;
+    if (
+      (params.postToStory || targetConvIds.size > 0) &&
+      params.mediaType === 'video' &&
+      singleDocMedia.length > LIMITS.IMAGE_DATA_MAX
+    ) {
+      singleDocMedia = await transcodeVideoFileToBoundedDataUrl(singleDocMedia);
+    }
+
+    if (params.postToStory) {
+      await createStory({
+        author: currentUserProfile,
+        mediaType: params.mediaType,
+        imageData: singleDocMedia,
+        caption: params.caption,
+        durationSec: params.durationSec >= 90 ? 5 : params.durationSec,
+      });
     }
 
     let lastSentConvId: string | null = null;
@@ -392,7 +446,7 @@ export default function App() {
         kind: 'snap',
         mediaType: params.mediaType,
         text: params.caption,
-        imageData: params.imageData,
+        imageData: singleDocMedia,
         snapDurationSec: params.durationSec,
       });
       lastSentConvId = convId;
@@ -401,10 +455,53 @@ export default function App() {
     if (lastSentConvId) {
       setActiveTab('chats');
       setActiveConversationId(lastSentConvId);
+    } else if (params.postToSpotlight && params.mediaType === 'video') {
+      setActiveTab('spotlight');
     } else if (params.postToStory) {
       setActiveTab('stories');
     }
   };
+
+  const handleForwardSpotlightToChat = useCallback(
+    async (params: {
+      conversationId?: string;
+      peerProfile?: PublicProfile;
+      video: SpotlightVideo;
+    }) => {
+      if (!currentUserProfile) return;
+      let targetConvId = params.conversationId;
+      if (!targetConvId && params.peerProfile) {
+        targetConvId = await createOrOpenDirectChat(currentUserProfile, params.peerProfile);
+      }
+      if (!targetConvId) return;
+
+      const convSnap = await getDoc(doc(db, 'conversations', targetConvId));
+      if (!convSnap.exists()) return;
+
+      const resolvedSrc = await resolveSpotlightVideoSrc(params.video);
+      const boundedSnapMedia =
+        params.video.videoData && params.video.videoData.length <= LIMITS.IMAGE_DATA_MAX
+          ? params.video.videoData
+          : await transcodeVideoFileToBoundedDataUrl(resolvedSrc);
+
+      await sendMessage({
+        conversation: convSnap.data() as Conversation,
+        sender: currentUserProfile,
+        kind: 'snap',
+        mediaType: 'video',
+        text: params.video.caption || `Spotlight by @${params.video.authorHandle}`,
+        imageData: boundedSnapMedia,
+        snapDurationSec: 10,
+      });
+      setActiveTab('chats');
+      setActiveConversationId(targetConvId);
+    },
+    [currentUserProfile]
+  );
+
+  const handleIncrementSpotlightView = useCallback(async (videoId: string) => {
+    await incrementSpotlightView(videoId);
+  }, []);
 
   const handleDeleteChat = async (conversationId: string) => {
     if (!currentUserProfile) return;
@@ -486,174 +583,223 @@ export default function App() {
         onOpenProfile={() => setShowProfileModal(true)}
       />
 
-      {/* Sidebar: Chats / Stories / Friends / Archived */}
-      <div
-        className={`${
-          activeConversationId ? 'hidden md:flex' : 'flex'
-        } flex-1 md:flex-none h-full min-h-0 pb-14 md:pb-0`}
-      >
-        {activeTab === 'people' ? (
-          <PeopleDirectory
+      {activeTab === 'spotlight' ? (
+        <div className="flex-1 h-full min-w-0 min-h-0 flex flex-col">
+          <SpotlightFeedPanel
             currentUser={currentUserProfile}
-            profiles={allKnownProfiles}
+            videos={spotlightVideos}
             friendships={friendships}
-            onSendFriendRequest={(peer) => sendFriendRequest(currentUserProfile, peer)}
-            onRespondFriendRequest={respondToFriendRequest}
-            onStartDirectChat={handleStartDirectChat}
-            onOpenNewGroup={() => setNewChatModalMode('group')}
-          />
-        ) : activeTab === 'stories' ? (
-          <StoriesPanel
-            currentUser={currentUserProfile}
-            stories={stories}
-            profilesByUid={profilesByUid}
-            onOpenCameraForStory={() =>
-              setCameraModalConfig({ conversationId: null, mode: 'story' })
-            }
-            onViewAuthorStories={(authorId) => setViewingStoryAuthorId(authorId)}
-            onDeleteStory={(storyId) => deleteStory(storyId)}
-          />
-        ) : (
-          <ConversationList
-            activeTab={activeTab}
             chats={chats}
-            stories={stories}
-            friendships={friendships}
-            activeConversationId={activeConversationId}
-            currentUser={currentUserProfile}
+            profiles={allKnownProfiles}
             profilesByUid={profilesByUid}
-            onSelectChat={(convId) => setActiveConversationId(convId)}
-            onOpenNewChat={(mode) => setNewChatModalMode(mode)}
-            onOpenCameraForChat={(convId) =>
-              setCameraModalConfig({
-                conversationId: convId || null,
-                mode: convId ? 'snap' : 'story',
-              })
+            onOpenCameraForSpotlight={() =>
+              setCameraModalConfig({ conversationId: null, mode: 'spotlight' })
             }
-            onViewAuthorStories={(authorId) => setViewingStoryAuthorId(authorId)}
-            onDeleteChat={handleDeleteChat}
-            onOpenProfile={() => setShowProfileModal(true)}
+            onUploadSpotlightVideo={async ({ videoData, caption, soundTitle, soundTrackId }) => {
+              await createSpotlightVideo({
+                author: currentUserProfile,
+                videoData,
+                caption,
+                soundTitle,
+                soundTrackId,
+                resolution: '720p',
+              });
+            }}
+            onUpdateVideoSound={(vid, soundTrackId, soundTitle) =>
+              updateSpotlightVideoSound(vid.id, soundTrackId, soundTitle)
+            }
+            onToggleLike={(vid) =>
+              toggleLikeSpotlightVideo(vid.id, currentUserProfile.uid, vid.likedBy)
+            }
+            onIncrementView={handleIncrementSpotlightView}
+            onDeleteVideo={(vid) => deleteSpotlightVideo(vid.id, vid.chunkCount || 0)}
+            onStartDirectChat={handleStartDirectChat}
+            onForwardVideoToChat={handleForwardSpotlightToChat}
           />
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          {/* Sidebar: Chats / Stories / Friends / Archived */}
+          <div
+            className={`${
+              activeConversationId ? 'hidden md:flex' : 'flex'
+            } flex-1 md:flex-none h-full min-h-0 pb-14 md:pb-0`}
+          >
+            {activeTab === 'people' ? (
+              <PeopleDirectory
+                currentUser={currentUserProfile}
+                profiles={allKnownProfiles}
+                friendships={friendships}
+                onSendFriendRequest={(peer) => sendFriendRequest(currentUserProfile, peer)}
+                onRespondFriendRequest={respondToFriendRequest}
+                onStartDirectChat={handleStartDirectChat}
+                onOpenNewGroup={() => setNewChatModalMode('group')}
+              />
+            ) : activeTab === 'stories' ? (
+              <StoriesPanel
+                currentUser={currentUserProfile}
+                stories={stories}
+                profilesByUid={profilesByUid}
+                onOpenCameraForStory={() =>
+                  setCameraModalConfig({ conversationId: null, mode: 'story' })
+                }
+                onViewAuthorStories={(authorId) => setViewingStoryAuthorId(authorId)}
+                onDeleteStory={(storyId) => deleteStory(storyId)}
+              />
+            ) : (
+              <ConversationList
+                activeTab={activeTab}
+                chats={chats}
+                stories={stories}
+                friendships={friendships}
+                activeConversationId={activeConversationId}
+                currentUser={currentUserProfile}
+                profilesByUid={profilesByUid}
+                onSelectChat={(convId) => setActiveConversationId(convId)}
+                onOpenNewChat={(mode) => setNewChatModalMode(mode)}
+                onOpenCameraForChat={(convId) =>
+                  setCameraModalConfig({
+                    conversationId: convId || null,
+                    mode: convId ? 'snap' : 'story',
+                  })
+                }
+                onViewAuthorStories={(authorId) => setViewingStoryAuthorId(authorId)}
+                onDeleteChat={handleDeleteChat}
+                onOpenProfile={() => setShowProfileModal(true)}
+              />
+            )}
+          </div>
 
-      {/* Active Chat Viewport */}
-      <div
-        className={`${
-          activeConversationId ? 'flex' : 'hidden md:flex'
-        } flex-1 h-full min-w-0 min-h-0`}
-      >
-        {activeConversationId ? (
-          <>
-            <ChatWindow
-              conversationId={activeConversationId}
-              chatIndex={activeChatIndex}
-              currentUser={currentUserProfile}
-              profilesByUid={profilesByUid}
-              showDetails={showDetails}
-              onToggleDetails={() => setShowDetails((v) => !v)}
-              onBackMobile={() => {
-                setActiveConversationId(null);
-                setShowDetails(false);
-              }}
-              onOpenCameraForChat={(convId) =>
-                setCameraModalConfig({ conversationId: convId, mode: 'snap' })
-              }
-              onOpenSnapViewer={(msg, conv) => setViewingSnap({ message: msg, conversation: conv })}
-              onConversationLoaded={handleConversationLoaded}
-              onOpenImageLightbox={(img) => setLightboxImage(img)}
-            />
-
-            {showDetails &&
-              activeConvData &&
-              activeConvData.conversation.id === activeConversationId && (
-                <ChatDetailsDrawer
-                  conversation={activeConvData.conversation}
+          {/* Active Chat Viewport */}
+          <div
+            className={`${
+              activeConversationId ? 'flex' : 'hidden md:flex'
+            } flex-1 h-full min-w-0 min-h-0`}
+          >
+            {activeConversationId ? (
+              <>
+                <ChatWindow
+                  conversationId={activeConversationId}
                   chatIndex={activeChatIndex}
-                  members={activeConvData.members}
-                  messages={activeConvData.messages}
                   currentUser={currentUserProfile}
                   profilesByUid={profilesByUid}
-                  allProfiles={allKnownProfiles}
-                  onClose={() => setShowDetails(false)}
-                  onUpdateAppearance={(updates) =>
-                    updateConversationAppearance(activeConvData.conversation, updates)
-                  }
-                  onUpdateFlags={(flags) =>
-                    updateUserChatFlags(
-                      currentUserProfile.uid,
-                      activeConvData.conversation.id,
-                      flags
-                    )
-                  }
-                  onRenameGroup={(title) =>
-                    renameGroupChat(activeConvData.conversation, title)
-                  }
-                  onAddMember={(member) =>
-                    addMemberToGroupChat(activeConvData.conversation, member)
-                  }
-                  onLeaveGroup={async () => {
-                    await leaveGroupChat(
-                      activeConvData.conversation,
-                      currentUserProfile.uid
-                    );
-                    setShowDetails(false);
+                  showDetails={showDetails}
+                  onToggleDetails={() => setShowDetails((v) => !v)}
+                  onBackMobile={() => {
                     setActiveConversationId(null);
+                    setShowDetails(false);
                   }}
-                  onDeleteChat={() => handleDeleteChat(activeConvData.conversation.id)}
+                  onOpenCameraForChat={(convId) =>
+                    setCameraModalConfig({ conversationId: convId, mode: 'snap' })
+                  }
+                  onOpenSnapViewer={(msg, conv) => setViewingSnap({ message: msg, conversation: conv })}
+                  onConversationLoaded={handleConversationLoaded}
                   onOpenImageLightbox={(img) => setLightboxImage(img)}
                 />
-              )}
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F9FAFC] dark:bg-[#0B0F17]">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 mb-5 bg-[#FFFC00] flex items-center justify-center">
-              <img
-                src="/src/assets/images/coolerup_emblem_1794968388923.jpg"
-                alt="CoolerUp Messages"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              CoolerUp Messages
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
-              Send disappearing Snaps, post 24-hour Stories, or jump into a chat with friends.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setCameraModalConfig({ conversationId: null, mode: 'snap' })}
-                className="h-10 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer"
-              >
-                <Camera className="w-4 h-4" />
-                <span>Open Camera</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setNewChatModalMode('direct')}
-                className="h-10 px-5 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-sm font-medium transition-colors cursor-pointer"
-              >
-                New Chat
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Mobile Snapchat-Style Bottom Navigation Bar (Chat · Camera · Stories · Friends) */}
-      {!activeConversationId && (
+                {showDetails &&
+                  activeConvData &&
+                  activeConvData.conversation.id === activeConversationId && (
+                    <ChatDetailsDrawer
+                      conversation={activeConvData.conversation}
+                      chatIndex={activeChatIndex}
+                      members={activeConvData.members}
+                      messages={activeConvData.messages}
+                      currentUser={currentUserProfile}
+                      profilesByUid={profilesByUid}
+                      allProfiles={allKnownProfiles}
+                      onClose={() => setShowDetails(false)}
+                      onUpdateAppearance={(updates) =>
+                        updateConversationAppearance(activeConvData.conversation, updates)
+                      }
+                      onUpdateFlags={(flags) =>
+                        updateUserChatFlags(
+                          currentUserProfile.uid,
+                          activeConvData.conversation.id,
+                          flags
+                        )
+                      }
+                      onRenameGroup={(title) =>
+                        renameGroupChat(activeConvData.conversation, title)
+                      }
+                      onAddMember={(member) =>
+                        addMemberToGroupChat(activeConvData.conversation, member)
+                      }
+                      onLeaveGroup={async () => {
+                        await leaveGroupChat(
+                          activeConvData.conversation,
+                          currentUserProfile.uid
+                        );
+                        setShowDetails(false);
+                        setActiveConversationId(null);
+                      }}
+                      onDeleteChat={() => handleDeleteChat(activeConvData.conversation.id)}
+                      onOpenImageLightbox={(img) => setLightboxImage(img)}
+                    />
+                  )}
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F9FAFC] dark:bg-[#0B0F17]">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 mb-5 bg-[#FFFC00] flex items-center justify-center">
+                  <img
+                    src="/src/assets/images/coolerup_emblem_1794968388923.jpg"
+                    alt="CoolerUp Messages"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                  CoolerUp Messages
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
+                  Send disappearing Snaps, post 24-hour Stories, watch Spotlight videos, or jump into a chat.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCameraModalConfig({ conversationId: null, mode: 'snap' })}
+                    className="h-10 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Open Camera</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('spotlight')}
+                    className="h-10 px-5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Film className="w-4 h-4 text-[#FFFC00]" />
+                    <span>Watch Spotlight</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewChatModalMode('direct')}
+                    className="h-10 px-5 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    New Chat
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Mobile Snapchat-Style Bottom Navigation Bar (Chat · Camera · Stories · Spotlight · Friends) */}
+      {(!activeConversationId || activeTab === 'spotlight') && (
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-14 bg-white/95 dark:bg-[#121824]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-14 bg-white/95 dark:bg-[#121824]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 items-center"
           aria-label="Mobile navigation"
         >
           <button
             type="button"
-            onClick={() => setActiveTab('chats')}
+            onClick={() => {
+              if (activeTab === 'spotlight') setActiveConversationId(null);
+              setActiveTab('chats');
+            }}
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'chats' || activeTab === 'archived'
                 ? 'text-[#00A6FF]'
@@ -673,17 +819,10 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => setCameraModalConfig({ conversationId: null, mode: 'snap' })}
-            className="h-full flex flex-col items-center justify-center gap-0.5 text-slate-900 dark:text-white cursor-pointer"
-          >
-            <span className="w-9 h-9 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center shadow-xs">
-              <Camera className="w-4 h-4" />
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('stories')}
+            onClick={() => {
+              if (activeTab === 'spotlight') setActiveConversationId(null);
+              setActiveTab('stories');
+            }}
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'stories'
                 ? 'text-[#8B5CF6]'
@@ -703,7 +842,39 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('people')}
+            onClick={() =>
+              setCameraModalConfig({
+                conversationId: activeTab === 'spotlight' ? null : activeConversationId,
+                mode: activeTab === 'spotlight' ? 'spotlight' : 'snap',
+              })
+            }
+            aria-label="Open Snap Camera"
+            className="h-full flex flex-col items-center justify-center gap-0.5 text-slate-900 dark:text-white cursor-pointer"
+          >
+            <span className="w-10 h-10 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center shadow-xs">
+              <Camera className="w-4 h-4" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('spotlight')}
+            className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+              activeTab === 'spotlight'
+                ? 'text-slate-950 dark:text-[#FFFC00]'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <Film className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Spotlight</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (activeTab === 'spotlight') setActiveConversationId(null);
+              setActiveTab('people');
+            }}
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'people'
                 ? 'text-[#00A6FF]'

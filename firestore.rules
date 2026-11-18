@@ -276,6 +276,50 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidSpotlightVideo(data, videoId) {
+      return data.keys().hasAll([
+          'id', 'authorId', 'authorName', 'authorHandle', 'authorPhotoURL',
+          'videoData', 'caption', 'soundTitle', 'likedBy', 'viewCount',
+          'isPublic', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorId', 'authorName', 'authorHandle', 'authorPhotoURL',
+          'authorAvatarSeed', 'videoData', 'chunkCount', 'resolution', 'soundTrackId',
+          'caption', 'soundTitle', 'likedBy', 'viewCount', 'isPublic', 'createdAt', 'updatedAt'
+        ])
+        && data.id == videoId
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.authorHandle is string && data.authorHandle.size() >= 2 && data.authorHandle.size() <= 40
+        && data.authorPhotoURL is string && data.authorPhotoURL.size() <= 1000
+        && (!('authorAvatarSeed' in data) || (data.authorAvatarSeed is string && data.authorAvatarSeed.size() <= 120))
+        && data.videoData is string && data.videoData.size() <= 650000
+        && (!('chunkCount' in data) || (data.chunkCount is int && data.chunkCount >= 0 && data.chunkCount <= 20))
+        && (data.videoData.size() >= 1 || ('chunkCount' in data && data.chunkCount >= 1))
+        && (!('resolution' in data) || (data.resolution is string && data.resolution.size() <= 20))
+        && (!('soundTrackId' in data) || (data.soundTrackId is string && data.soundTrackId.size() <= 40))
+        && data.caption is string && data.caption.size() <= 200
+        && data.soundTitle is string && data.soundTitle.size() <= 80
+        && isValidBoundedUidList(data.likedBy, 500)
+        && data.viewCount is int && data.viewCount >= 0 && data.viewCount <= 10000000
+        && data.isPublic is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSpotlightVideoChunk(data, videoId, chunkId) {
+      return data.keys().hasAll(['id', 'videoId', 'authorId', 'index', 'data', 'createdAt'])
+        && data.keys().hasOnly(['id', 'videoId', 'authorId', 'index', 'data', 'createdAt'])
+        && isValidId(data.id)
+        && data.id == chunkId
+        && isValidId(data.videoId)
+        && data.videoId == videoId
+        && isValidId(data.authorId)
+        && data.index is int && data.index >= 0 && data.index < 20
+        && data.data is string && data.data.size() >= 1 && data.data.size() <= 600000
+        && data.createdAt is timestamp;
+    }
+
     // --- 1. Public Profiles Directory ---
     match /profiles/{profileId} {
       allow get: if isSignedIn() && isValidId(profileId);
@@ -607,6 +651,79 @@ service cloud.firestore {
       allow delete: if isVerifiedUser()
         && isValidId(storyId)
         && existing().authorId == request.auth.uid;
+    }
+
+    // --- 9. Spotlight Video Feed ---
+    match /spotlightVideos/{videoId} {
+      allow get: if isSignedIn() && isValidId(videoId);
+      allow list: if isSignedIn() && (resource.data.isPublic == true || resource.data.authorId == request.auth.uid);
+
+      allow create: if isVerifiedUser()
+        && isValidId(videoId)
+        && isValidSpotlightVideo(incoming(), videoId)
+        && incoming().authorId == request.auth.uid
+        && incoming().likedBy.size() == 0
+        && incoming().viewCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(videoId)
+        && isValidSpotlightVideo(incoming(), videoId)
+        && incoming().id == existing().id
+        && incoming().authorId == existing().authorId
+        && incoming().videoData == existing().videoData
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Any signed-in user toggles their own like in likedBy
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likedBy', 'updatedAt'])
+            && (!(request.auth.uid in existing().likedBy) || !(request.auth.uid in incoming().likedBy) || incoming().likedBy.hasAll(existing().likedBy)))
+          ||
+          // Action 2: Viewer increments viewCount by 1
+          (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'updatedAt'])
+            && incoming().viewCount == existing().viewCount + 1)
+          ||
+          // Action 3: Author edits caption or soundTitle
+          (existing().authorId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'soundTitle', 'soundTrackId', 'updatedAt']))
+          ||
+          // Action 4: Author publishes video after uploading 720p chunks
+          (existing().authorId == request.auth.uid
+            && existing().isPublic == false
+            && incoming().isPublic == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isPublic', 'updatedAt']))
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(videoId)
+        && existing().authorId == request.auth.uid;
+
+      // Subcollection for chunked 720p audio+video data
+      match /chunks/{chunkId} {
+        allow get: if isSignedIn()
+          && isValidId(videoId)
+          && isValidId(chunkId)
+          && exists(/databases/$(database)/documents/spotlightVideos/$(videoId))
+          && (get(/databases/$(database)/documents/spotlightVideos/$(videoId)).data.isPublic == true
+            || get(/databases/$(database)/documents/spotlightVideos/$(videoId)).data.authorId == request.auth.uid);
+
+        allow create: if isVerifiedUser()
+          && isValidId(videoId)
+          && isValidId(chunkId)
+          && isValidSpotlightVideoChunk(incoming(), videoId, chunkId)
+          && incoming().authorId == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/spotlightVideos/$(videoId))
+          && get(/databases/$(database)/documents/spotlightVideos/$(videoId)).data.authorId == request.auth.uid;
+
+        allow delete: if isVerifiedUser()
+          && isValidId(videoId)
+          && isValidId(chunkId)
+          && (existing().authorId == request.auth.uid
+            || (exists(/databases/$(database)/documents/spotlightVideos/$(videoId))
+              && get(/databases/$(database)/documents/spotlightVideos/$(videoId)).data.authorId == request.auth.uid));
+      }
     }
   }
 }

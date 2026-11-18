@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, RotateCcw, Timer, X } from 'lucide-react';
+import { Camera, RotateCcw, Timer, Volume2, VolumeX, X } from 'lucide-react';
 import { formatMessageTime } from '../lib/dateFormat';
 import type { Message } from '../types/messenger';
 import { Avatar } from './Avatar';
@@ -24,9 +24,11 @@ export function SnapViewerModal({
     : 0;
   const [remainingMs, setRemainingMs] = useState(totalSec > 0 ? totalSec * 1000 : 0);
   const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [replayedThisSession, setReplayedThisSession] = useState(false);
   const [screenshottedToast, setScreenshottedToast] = useState(false);
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -61,6 +63,24 @@ export function SnapViewerModal({
 
   const progressPct = totalSec > 0 ? Math.max(0, (remainingMs / (totalSec * 1000)) * 100) : 100;
   const isVideo = message.mediaType === 'video' || message.imageData.startsWith('data:video');
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!isVideo || !el) return;
+    let cancelled = false;
+    el.muted = muted;
+    el.volume = 1;
+    void el.play().catch(() => {
+      if (!cancelled && !muted) {
+        el.muted = true;
+        setMuted(true);
+        void el.play().catch(() => {});
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isVideo, message.id, muted]);
 
   const handleTriggerReplay = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -133,6 +153,26 @@ export function SnapViewerModal({
               >
                 <Camera className="w-3.5 h-3.5" />
               </button>
+              {isVideo && (
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = !muted;
+                    setMuted(next);
+                    if (videoRef.current) {
+                      videoRef.current.muted = next;
+                      videoRef.current.volume = 1;
+                      void videoRef.current.play().catch(() => {});
+                    }
+                  }}
+                  title={muted ? 'Unmute video' : 'Mute video'}
+                  className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
+                >
+                  {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={(e) => {
@@ -158,10 +198,12 @@ export function SnapViewerModal({
         <div className="flex-1 flex items-center justify-center bg-black" onClick={onClose}>
           {isVideo ? (
             <video
+              ref={videoRef}
               src={message.imageData}
               autoPlay
               loop
               playsInline
+              muted={muted}
               className="max-w-full max-h-full object-contain"
             />
           ) : (
