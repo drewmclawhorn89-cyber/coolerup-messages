@@ -213,5 +213,5 @@ export interface Story {
   updatedAt: Timestamp | null;
 }
 
-export type NavTab = 'chats' | 'camera' | 'stories' | 'people' | 'archived';
+export type NavTab = 'chats' | 'camera' | 'stories' | 'people' | 'archived' | 'video';
 export type ChatFilter = 'all' | 'snaps' | 'unread' | 'groups';
