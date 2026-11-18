@@ -99,14 +99,49 @@ export function SnapViewerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black flex items-center justify-center select-none"
+      className="fixed inset-0 z-50 w-screen h-[100dvh] bg-black overflow-hidden select-none"
       onPointerDown={() => setPaused(true)}
       onPointerUp={() => setPaused(false)}
       onPointerLeave={() => setPaused(false)}
     >
-      <div className="relative w-full h-full sm:max-w-[440px] sm:max-h-[820px] sm:rounded-3xl overflow-hidden bg-black flex flex-col">
-        {/* Progress Bar */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-3 bg-gradient-to-b from-black/75 to-transparent">
+      <div className="relative w-full h-full overflow-hidden bg-black">
+        {/* Full-Screen Snap Media */}
+        <div className="absolute inset-0 bg-black" onClick={onClose}>
+          {isVideo ? (
+            <video
+              ref={videoRef}
+              src={message.imageData}
+              autoPlay
+              loop
+              playsInline
+              muted={muted}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <img
+              src={message.imageData}
+              alt="Disappearing Snap"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+        </div>
+
+        {/* Top & Bottom Gradients */}
+        <div
+          className="pointer-events-none absolute top-0 left-0 right-0 h-36 z-[4]"
+          style={{
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 60%, transparent 100%)',
+          }}
+        />
+        <div
+          className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 z-[4]"
+          style={{
+            background: 'linear-gradient(to top, black 0%, transparent 100%)',
+          }}
+        />
+
+        {/* Progress Bar & Header (Floating on top) */}
+        <div className="absolute top-0 left-0 right-0 z-10 p-3 sm:p-4">
           <div className="w-full h-1 rounded-full bg-white/25 overflow-hidden mb-3">
             <div
               style={{ width: `${progressPct}%` }}
@@ -118,10 +153,10 @@ export function SnapViewerModal({
             <div className="flex items-center gap-2.5 min-w-0">
               <Avatar name={message.senderName} photoURL={message.senderPhotoURL} size="sm" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white truncate">
+                <p className="text-sm font-semibold text-white truncate drop-shadow">
                   {message.senderName}
                 </p>
-                <p className="text-[11px] text-white/75 font-mono-tabular">
+                <p className="text-[11px] text-white/80 font-mono-tabular drop-shadow">
                   {formatMessageTime(message.createdAt)}
                 </p>
               </div>
@@ -194,29 +229,13 @@ export function SnapViewerModal({
           )}
         </div>
 
-        {/* Snap Media */}
-        <div className="flex-1 flex items-center justify-center bg-black" onClick={onClose}>
-          {isVideo ? (
-            <video
-              ref={videoRef}
-              src={message.imageData}
-              autoPlay
-              loop
-              playsInline
-              muted={muted}
-              className="max-w-full max-h-full object-contain"
-            />
-          ) : (
-            <img
-              src={message.imageData}
-              alt="Disappearing Snap"
-              className="max-w-full max-h-full object-contain"
-            />
+        <div className="absolute bottom-0 left-0 right-0 z-10 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-center pointer-events-none">
+          {message.text && (
+            <p className="mb-2 px-4 text-sm font-semibold text-white drop-shadow">
+              {message.text}
+            </p>
           )}
-        </div>
-
-        <div className="absolute bottom-3 left-0 right-0 text-center pointer-events-none">
-          <span className="text-[11px] text-white/65">
+          <span className="text-[11px] text-white/75 drop-shadow">
             Hold to pause · Tap to close (disappears after closing)
           </span>
         </div>

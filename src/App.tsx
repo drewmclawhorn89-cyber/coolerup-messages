@@ -1045,6 +1045,7 @@ export default function App() {
             }}
             onStartDirectChat={handleStartDirectChat}
             onForwardVideoToChat={handleForwardSpotlightToChat}
+            onBack={() => setActiveTab('camera')}
           />
         </div>
       ) : (
@@ -1265,7 +1266,11 @@ export default function App() {
       {/* Mobile Snapchat-Style 5-Tab Bottom Navigation Bar: Map · Chat · Camera · Stories · Spotlight */}
       {showMobileBottomNav && (
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-14 bg-white/95 dark:bg-[#121824]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 items-center"
+          className={`md:hidden fixed bottom-0 left-0 right-0 z-30 h-14 grid grid-cols-5 items-center ${
+            activeTab === 'spotlight'
+              ? 'bg-transparent border-t border-transparent text-white'
+              : 'bg-white/95 dark:bg-[#121824]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800'
+          }`}
           aria-label="Mobile navigation"
         >
           <button
@@ -1277,6 +1282,8 @@ export default function App() {
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'map'
                 ? 'text-emerald-500'
+                : activeTab === 'spotlight'
+                ? 'text-white/80 hover:text-white'
                 : 'text-slate-500 dark:text-slate-400'
             }`}
           >
@@ -1293,6 +1300,8 @@ export default function App() {
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'chats' || activeTab === 'archived' || activeTab === 'people'
                 ? 'text-[#00A6FF]'
+                : activeTab === 'spotlight'
+                ? 'text-white/80 hover:text-white'
                 : 'text-slate-500 dark:text-slate-400'
             }`}
           >
@@ -1317,8 +1326,12 @@ export default function App() {
             className="h-full flex flex-col items-center justify-center cursor-pointer"
           >
             <span
-              className={`w-12 h-12 rounded-full bg-[#FFFC00] text-slate-950 -mt-3 shadow-md ring-4 ring-white dark:ring-[#121824] flex items-center justify-center transition-transform active:scale-95 ${
-                activeTab === 'camera' ? 'ring-[#FFFC00]/40' : ''
+              className={`w-12 h-12 rounded-full bg-[#FFFC00] text-slate-950 -mt-3 shadow-md ring-4 flex items-center justify-center transition-transform active:scale-95 ${
+                activeTab === 'spotlight'
+                  ? 'ring-black/50'
+                  : activeTab === 'camera'
+                  ? 'ring-[#FFFC00]/40'
+                  : 'ring-white dark:ring-[#121824]'
               }`}
             >
               <Camera className="w-5 h-5" />
@@ -1334,6 +1347,8 @@ export default function App() {
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'stories'
                 ? 'text-[#8B5CF6]'
+                : activeTab === 'spotlight'
+                ? 'text-white/80 hover:text-white'
                 : 'text-slate-500 dark:text-slate-400'
             }`}
           >
@@ -1356,7 +1371,7 @@ export default function App() {
             }}
             className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
               activeTab === 'spotlight'
-                ? 'text-slate-950 dark:text-[#FFFC00]'
+                ? 'text-[#FFFC00]'
                 : 'text-slate-500 dark:text-slate-400'
             }`}
           >

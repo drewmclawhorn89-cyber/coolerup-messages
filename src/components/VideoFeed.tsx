@@ -456,7 +456,7 @@ function VideoCard({
   const isEffectiveMuted = muted || autoplayAudioBlocked;
 
   return (
-    <article className="relative flex h-[100dvh] w-full snap-start snap-always items-center justify-center overflow-hidden bg-[#101010]">
+    <article className="relative flex h-[100dvh] w-screen snap-start snap-always items-center justify-center overflow-hidden bg-black">
       {resolving || !src ? (
         <div className="flex flex-col items-center gap-2 text-white/75">
           <Loader2 className="h-8 w-8 animate-spin text-[#FFFC00]" />
@@ -466,7 +466,7 @@ function VideoCard({
         <video
           ref={videoRef}
           src={src}
-          className="absolute inset-0 h-full w-full object-contain md:object-cover cursor-pointer"
+          className="absolute inset-0 h-full w-full object-cover cursor-pointer"
           playsInline
           loop
           muted={isEffectiveMuted}
@@ -475,7 +475,14 @@ function VideoCard({
           aria-label={`Video by ${item.authorName}`}
         />
       )}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/20" />
+      <div
+        className="pointer-events-none absolute top-0 left-0 right-0 h-36 z-[4]"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 60%, transparent 100%)' }}
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-[35dvh] z-[4]"
+        style={{ background: 'linear-gradient(to top, black 0%, transparent 100%)' }}
+      />
       {isEffectiveMuted && src && (
         <button
           type="button"
@@ -497,7 +504,7 @@ function VideoCard({
         </button>
       )}
 
-      <div className="absolute bottom-[max(5rem,env(safe-area-inset-bottom))] left-4 right-20 z-10 md:bottom-8 md:left-[calc(50%-210px)] md:right-auto md:w-[330px]">
+      <div className="absolute bottom-[max(5rem,env(safe-area-inset-bottom))] left-4 right-20 z-10 md:bottom-8 md:left-6 md:right-28">
         <p className="text-base font-bold drop-shadow">@{item.authorHandle || item.authorName}</p>
         {item.caption && <p className="mt-2 line-clamp-3 text-sm leading-5 drop-shadow">{item.caption}</p>}
         <p className="mt-3 text-[11px] font-medium text-white/75 flex items-center gap-1.5">
@@ -512,7 +519,7 @@ function VideoCard({
         </p>
       </div>
 
-      <div className="absolute bottom-[max(5rem,env(safe-area-inset-bottom))] right-3 z-10 flex flex-col items-center gap-5 md:bottom-8 md:right-[calc(50%-235px)]">
+      <div className="absolute bottom-[max(5rem,env(safe-area-inset-bottom))] right-3 z-10 flex flex-col items-center gap-5 md:bottom-8 md:right-6">
         <div className="mb-1 h-11 w-11 overflow-hidden rounded-full border-2 border-white bg-slate-700">
           {item.authorPhotoURL && <img src={item.authorPhotoURL} alt="" className="h-full w-full object-cover" />}
         </div>

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeft,
   Bookmark,
   Camera,
   Check,
@@ -12,7 +13,6 @@ import {
   MessageCircle,
   MessageSquare,
   Music2,
-  Pause,
   Play,
   Plus,
   Send,
@@ -94,6 +94,7 @@ interface SpotlightFeedPanelProps {
     peerProfile?: PublicProfile;
     video: SpotlightVideo;
   }) => Promise<void>;
+  onBack?: () => void;
 }
 
 function formatCompactCount(n: number): string {
@@ -131,6 +132,7 @@ export function SpotlightFeedPanel({
   onSaveToMemory,
   onStartDirectChat,
   onForwardVideoToChat,
+  onBack,
 }: SpotlightFeedPanelProps) {
   const [filter, setFilter] = useState<FeedFilter>('foryou');
   const [shuffleSeed] = useState<number>(() => Math.floor(Math.random() * 100000));
@@ -148,7 +150,8 @@ export function SpotlightFeedPanel({
   const [commentText, setCommentText] = useState('');
   const [postingComment, setPostingComment] = useState(false);
 
-  // Resolved video src (supports inline & chunked 720p videos)
+  // Resolved video src cache (supports inline & chunked 720p videos across snap slides)
+  const [resolvedSrcById, setResolvedSrcById] = useState<Record<string, string>>({});
   const [resolvedSrc, setResolvedSrc] = useState<string>('');
   const [loadingVideo, setLoadingVideo] = useState(false);
   const [videoDimsLabel, setVideoDimsLabel] = useState<string>('720p HD');
@@ -174,11 +177,12 @@ export function SpotlightFeedPanel({
   const [shareVideo, setShareVideo] = useState<SpotlightVideo | null>(null);
   const [forwardingId, setForwardingId] = useState<string | null>(null);
 
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const videoPlayerRef = useRef<HTMLVideoElement | null>(null);
   const uploadPreviewRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const viewedIdsRef = useRef<Set<string>>(new Set());
-  const touchStartYRef = useRef<number | null>(null);
+  const resolvingIdsRef = useRef<Set<string>>(new Set());
 
   const friendAndFollowingUids = useMemo(() => {
     const set = new Set<string>([currentUser.uid, ...(currentUser.following || [])]);
@@ -214,11 +218,62 @@ export function SpotlightFeedPanel({
   const safeIndex = filteredVideos.length > 0 ? Math.min(activeIndex, filteredVideos.length - 1) : 0;
   const activeVideo = filteredVideos[safeIndex] ?? null;
 
+  const scrollToSlide = useCallback(
+    (targetIdx: number) => {
+      const container = scrollContainerRef.current;
+      const clamped = Math.max(0, Math.min(filteredVideos.length - 1, targetIdx));
+      setActiveIndex(clamped);
+      if (container) {
+        container.scrollTo({
+          top: clamped * container.clientHeight,
+          behavior: 'smooth',
+        });
+      }
+    },
+    [filteredVideos.length]
+  );
+
   useEffect(() => {
     setActiveIndex(0);
     setPaused(false);
     setConfirmDeleteId(null);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }, [filter]);
+
+  // Track visible snap slide via IntersectionObserver
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || filteredVideos.length === 0) return;
+
+    const slides = Array.from(container.querySelectorAll<HTMLElement>('[data-slide-index]'));
+    if (slides.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let bestIdx: number | null = null;
+        let bestRatio = 0;
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio > bestRatio) {
+            const idxAttr = entry.target.getAttribute('data-slide-index');
+            const parsed = idxAttr ? Number(idxAttr) : NaN;
+            if (!Number.isNaN(parsed)) {
+              bestRatio = entry.intersectionRatio;
+              bestIdx = parsed;
+            }
+          }
+        }
+        if (bestIdx !== null && bestRatio >= 0.55) {
+          setActiveIndex((prev) => (prev === bestIdx ? prev : bestIdx));
+        }
+      },
+      { root: container, threshold: [0.55, 0.8] }
+    );
+
+    slides.forEach((s) => observer.observe(s));
+    return () => observer.disconnect();
+  }, [filteredVideos.length, filter]);
 
   // Live comments subscription when comments drawer is open
   useEffect(() => {
@@ -265,7 +320,7 @@ export function SpotlightFeedPanel({
     };
   }, [commentsVideo?.id]);
 
-  // Resolve inline or chunked 720p video URL whenever activeVideo changes
+  // Resolve inline or chunked 720p video URL for active slide and adjacent slides
   useEffect(() => {
     if (!activeVideo) {
       setResolvedSrc('');
@@ -279,8 +334,9 @@ export function SpotlightFeedPanel({
     setClipHasNoAudio(false);
     setVideoDimsLabel(activeVideo.resolution || '720p HD');
 
-    if (activeVideo.videoData) {
-      setResolvedSrc(activeVideo.videoData);
+    const cachedActive = activeVideo.videoData || resolvedSrcById[activeVideo.id];
+    if (cachedActive) {
+      setResolvedSrc(cachedActive);
       setLoadingVideo(false);
     } else {
       setLoadingVideo(true);
@@ -289,6 +345,7 @@ export function SpotlightFeedPanel({
         .then((url) => {
           if (!cancelled) {
             setResolvedSrc(url);
+            setResolvedSrcById((prev) => ({ ...prev, [activeVideo.id]: url }));
             setLoadingVideo(false);
           }
         })
@@ -299,6 +356,28 @@ export function SpotlightFeedPanel({
         });
     }
 
+    // Preload immediate neighbors for seamless snap scrolling
+    const neighborIndices = [safeIndex - 1, safeIndex + 1];
+    for (const ni of neighborIndices) {
+      const neighbor = filteredVideos[ni];
+      if (
+        neighbor &&
+        !neighbor.videoData &&
+        !resolvedSrcById[neighbor.id] &&
+        !resolvingIdsRef.current.has(neighbor.id)
+      ) {
+        resolvingIdsRef.current.add(neighbor.id);
+        void resolveSpotlightVideoSrc(neighbor)
+          .then((url) => {
+            setResolvedSrcById((prev) => ({ ...prev, [neighbor.id]: url }));
+          })
+          .catch(() => {})
+          .finally(() => {
+            resolvingIdsRef.current.delete(neighbor.id);
+          });
+      }
+    }
+
     if (!viewedIdsRef.current.has(activeVideo.id)) {
       viewedIdsRef.current.add(activeVideo.id);
       void onIncrementView(activeVideo.id);
@@ -307,7 +386,7 @@ export function SpotlightFeedPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeVideo, onIncrementView]);
+  }, [activeVideo, safeIndex, filteredVideos, resolvedSrcById, onIncrementView]);
 
   // Imperatively sync muted & volume on the active feed <video> AND upload preview <video>
   useEffect(() => {
@@ -432,19 +511,19 @@ export function SpotlightFeedPanel({
   // Keyboard Up/Down/Space navigation
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (showUploadModal || shareVideo || editMusicVideo) return;
+      if (showUploadModal || shareVideo || editMusicVideo || commentsVideo) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setActiveIndex((prev) => Math.min(Math.max(0, filteredVideos.length - 1), prev + 1));
+        scrollToSlide(safeIndex + 1);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setActiveIndex((prev) => Math.max(0, prev - 1));
+        scrollToSlide(safeIndex - 1);
       } else if (e.key === ' ') {
         const el = videoPlayerRef.current;
         if (!el) return;
         e.preventDefault();
-        resumeSpotlightAudioContext();
+        void resumeSpotlightAudioContext();
         if (el.paused) {
           void el.play().catch(() => {});
           setPaused(false);
@@ -456,7 +535,7 @@ export function SpotlightFeedPanel({
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [filteredVideos.length, showUploadModal, shareVideo]);
+  }, [safeIndex, scrollToSlide, showUploadModal, shareVideo, editMusicVideo, commentsVideo]);
 
   const handleEnableSound = () => {
     void resumeSpotlightAudioContext();
@@ -582,97 +661,103 @@ export function SpotlightFeedPanel({
     }
   };
 
-  const activeAuthorProfile = activeVideo ? profilesByUid[activeVideo.authorId] : undefined;
-  const isLikedByMe = activeVideo ? activeVideo.likedBy.includes(currentUser.uid) : false;
-  const isOwner = activeVideo ? activeVideo.authorId === currentUser.uid : false;
-
   return (
-    <div className="flex-1 h-full min-h-0 bg-[#F9FAFC] dark:bg-[#0B0F17] flex flex-col overflow-hidden">
-      {/* Top Bar */}
-      <header className="px-4 sm:px-6 py-3.5 bg-white dark:bg-[#121824] border-b border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#FFFC00] text-slate-950 flex items-center justify-center shadow-xs shrink-0">
-            <Film className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="font-display text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">
+    <div className="fixed inset-0 z-20 w-screen h-[100dvh] overflow-hidden bg-black text-white select-none">
+      {/* Floating Top Bar */}
+      <header
+        className="absolute top-0 left-0 right-0 z-20 px-3 sm:px-5 pt-3 pb-7 pointer-events-none"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 60%, transparent 100%)' }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                aria-label="Back"
+                className="hidden md:flex w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-xs text-white items-center justify-center cursor-pointer transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FFFC00] text-slate-950 flex items-center justify-center shadow-xs shrink-0">
+              <Film className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <h1 className="font-display text-base sm:text-lg font-bold text-white leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
               Spotlight
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-              720p HD vertical videos with music &amp; sound
-            </p>
           </div>
-        </div>
 
-        {/* Segmented Filter */}
-        <div
-          className="flex items-center bg-[#F4F6F9] dark:bg-slate-800/70 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700/60"
-          role="tablist"
-          aria-label="Spotlight feed filter"
-        >
-          {(
-            [
-              { id: 'foryou', label: 'For You' },
-              { id: 'following', label: 'Following' },
-              { id: 'mine', label: 'My Videos' },
-            ] as const
-          ).map((tab) => (
+          {/* Segmented Filter */}
+          <div
+            className="flex items-center bg-black/45 backdrop-blur-md p-1 rounded-xl border border-white/15"
+            role="tablist"
+            aria-label="Spotlight feed filter"
+          >
+            {(
+              [
+                { id: 'foryou', label: 'For You' },
+                { id: 'following', label: 'Following' },
+                { id: 'mine', label: 'My Videos' },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === tab.id}
+                onClick={() => setFilter(tab.id)}
+                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  filter === tab.id
+                    ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Record & Post Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
-              key={tab.id}
               type="button"
-              role="tab"
-              aria-selected={filter === tab.id}
-              onClick={() => setFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                filter === tab.id
-                  ? 'bg-white dark:bg-[#1E2638] text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              onClick={onOpenCameraForSpotlight}
+              className="h-9 px-3 sm:px-3.5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
-              {tab.label}
+              <Camera className="w-4 h-4" />
+              <span className="hidden xs:inline sm:inline">Record 720p</span>
             </button>
-          ))}
-        </div>
-
-        {/* Record & Post Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenCameraForSpotlight}
-            className="h-10 px-4 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Record 720p</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setUploadError('');
-              setShowUploadModal(true);
-            }}
-            className="h-10 px-4 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Post Video</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUploadError('');
+                setShowUploadModal(true);
+              }}
+              className="h-9 px-3 sm:px-3.5 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Post Video</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-6 pb-16 md:pb-6 flex items-center justify-center">
-        {!activeVideo ? (
-          <div className="max-w-md w-full bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center shadow-xs">
+      {/* Full-Screen Vertical Snap Feed */}
+      {filteredVideos.length === 0 ? (
+        <div className="w-screen h-[100dvh] bg-black flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white/10 backdrop-blur-md border border-white/15 rounded-3xl p-8 text-center">
             <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#FFFC00] text-slate-950 flex items-center justify-center">
               <Film className="w-7 h-7" />
             </div>
-            <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white mb-2">
+            <h2 className="font-display text-xl font-bold text-white mb-2">
               {filter === 'mine'
                 ? 'You haven’t posted a Spotlight video yet'
                 : filter === 'following'
                 ? 'No videos from friends yet'
                 : 'Spotlight Feed is Ready'}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+            <p className="text-sm text-white/75 mb-6 leading-relaxed">
               Record a 720p HD clip with sound or upload a short video with music to share it on the feed.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -694,474 +779,381 @@ export function SpotlightFeedPanel({
               </button>
             </div>
           </div>
-        ) : (
-          <div className="w-full max-w-5xl h-full flex items-center justify-center gap-6">
-            {/* Vertical 9:16 Theater Video Stage */}
-            <div className="relative h-full max-h-[760px] w-full max-w-[420px] aspect-[9/16] rounded-3xl overflow-hidden bg-black shadow-lg border border-slate-200/30 dark:border-slate-800 flex items-center justify-center select-none">
-              {loadingVideo || !resolvedSrc ? (
-                <div className="flex flex-col items-center gap-3 text-white/80">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#FFFC00]" />
-                  <span className="text-xs font-medium">Loading 720p video...</span>
-                </div>
-              ) : (
-                <video
-                  key={activeVideo.id}
-                  ref={videoPlayerRef}
-                  src={resolvedSrc}
-                  autoPlay
-                  loop
-                  playsInline
-                  muted={muted || autoplayAudioBlocked}
-                  onLoadedMetadata={(e) => {
-                    const vw = e.currentTarget.videoWidth;
-                    const vh = e.currentTarget.videoHeight;
-                    const shortEdge = Math.min(vw, vh);
-                    if (shortEdge >= 700) {
-                      setVideoDimsLabel('720p HD');
-                    } else if (shortEdge > 0) {
-                      setVideoDimsLabel(`${shortEdge}p`);
-                    }
-                  }}
-                  onClick={togglePlayPause}
-                  onTouchStart={(e) => {
-                    touchStartYRef.current = e.touches[0]?.clientY ?? null;
-                  }}
-                  onTouchEnd={(e) => {
-                    if (touchStartYRef.current === null) return;
-                    const endY = e.changedTouches[0]?.clientY ?? touchStartYRef.current;
-                    const delta = touchStartYRef.current - endY;
-                    touchStartYRef.current = null;
-                    if (delta > 55 && safeIndex < filteredVideos.length - 1) {
-                      setActiveIndex((i) => i + 1);
-                    } else if (delta < -55 && safeIndex > 0) {
-                      setActiveIndex((i) => i - 1);
-                    }
-                  }}
-                  className="w-full h-full object-cover cursor-pointer"
+        </div>
+      ) : (
+        <div
+          ref={scrollContainerRef}
+          className="h-[100dvh] w-screen overflow-y-auto snap-y snap-mandatory overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-black"
+        >
+          {filteredVideos.map((vid, idx) => {
+            const isSlideActive = idx === safeIndex;
+            const slideSrc =
+              vid.videoData || resolvedSrcById[vid.id] || (isSlideActive ? resolvedSrc : '');
+            const slideAuthorProfile = profilesByUid[vid.authorId];
+            const slideLikedByMe = vid.likedBy.includes(currentUser.uid);
+            const slideIsOwner = vid.authorId === currentUser.uid;
+            const slideIsFollowing = (currentUser.following || []).includes(vid.authorId);
+
+            return (
+              <section
+                key={vid.id}
+                data-slide-index={idx}
+                className="relative w-screen h-[100dvh] snap-start snap-always overflow-hidden bg-black flex items-center justify-center"
+              >
+                {/* Edge-to-Edge Full-Screen Video */}
+                {!slideSrc ? (
+                  <div className="flex flex-col items-center gap-3 text-white/80">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#FFFC00]" />
+                    <span className="text-xs font-medium">
+                      {loadingVideo && isSlideActive ? 'Loading 720p video...' : 'Loading video...'}
+                    </span>
+                  </div>
+                ) : (
+                  <video
+                    ref={isSlideActive ? videoPlayerRef : undefined}
+                    src={slideSrc}
+                    autoPlay={isSlideActive}
+                    loop
+                    playsInline
+                    preload="metadata"
+                    muted={isSlideActive ? muted || autoplayAudioBlocked : true}
+                    onLoadedMetadata={(e) => {
+                      if (!isSlideActive) return;
+                      const vw = e.currentTarget.videoWidth;
+                      const vh = e.currentTarget.videoHeight;
+                      const shortEdge = Math.min(vw, vh);
+                      if (shortEdge >= 700) {
+                        setVideoDimsLabel('720p HD');
+                      } else if (shortEdge > 0) {
+                        setVideoDimsLabel(`${shortEdge}p`);
+                      }
+                    }}
+                    onClick={isSlideActive ? togglePlayPause : undefined}
+                    className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+                  />
+                )}
+
+                {/* Bottom Gradient Scrim over Video */}
+                <div
+                  className="pointer-events-none absolute inset-0 z-[4]"
+                  style={{ background: 'linear-gradient(to top, black 0%, transparent 30%)' }}
                 />
-              )}
 
-              {/* Top HUD: Views + 720p + Mute */}
-              <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none">
-                <div className="px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-xs text-white text-xs font-mono-tabular font-medium flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-[#FFFC00]" />
-                  <span>{formatCompactCount(activeVideo.viewCount)} views</span>
-                  <span className="text-white/45">·</span>
-                  <span className="text-[#FFFC00] font-semibold">{videoDimsLabel}</span>
-                  <span className="text-white/45">·</span>
-                  <span>
-                    {safeIndex + 1}/{filteredVideos.length}
-                  </span>
+                {/* Floating HUD below Header: Views + 720p + Sound Toggle */}
+                <div className="absolute top-16 sm:top-[4.5rem] left-3 sm:left-5 right-3 sm:right-5 z-10 flex items-center justify-between pointer-events-none">
+                  <div className="px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-xs text-white text-xs font-mono-tabular font-medium flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-[#FFFC00]" />
+                    <span>{formatCompactCount(vid.viewCount)} views</span>
+                    <span className="text-white/45">·</span>
+                    <span className="text-[#FFFC00] font-semibold">
+                      {isSlideActive ? videoDimsLabel : vid.resolution || '720p HD'}
+                    </span>
+                    <span className="text-white/45">·</span>
+                    <span>
+                      {idx + 1}/{filteredVideos.length}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (autoplayAudioBlocked || muted) {
+                        handleEnableSound();
+                      } else {
+                        setMuted(true);
+                        stopSpotlightTrack();
+                      }
+                    }}
+                    aria-label={muted || autoplayAudioBlocked ? 'Unmute video' : 'Mute video'}
+                    className={`pointer-events-auto w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer transition-colors ${
+                      muted || autoplayAudioBlocked
+                        ? 'bg-[#FFFC00] text-slate-950'
+                        : 'bg-black/45 hover:bg-black/65 text-white'
+                    }`}
+                  >
+                    {muted || autoplayAudioBlocked ? (
+                      <VolumeX className="w-5 h-5" />
+                    ) : (
+                      <Volume2 className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (autoplayAudioBlocked || muted) {
-                      handleEnableSound();
-                    } else {
-                      setMuted(true);
-                      stopSpotlightTrack();
-                    }
-                  }}
-                  aria-label={muted || autoplayAudioBlocked ? 'Unmute video' : 'Mute video'}
-                  className={`pointer-events-auto w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs cursor-pointer transition-colors ${
-                    muted || autoplayAudioBlocked
-                      ? 'bg-[#FFFC00] text-slate-950'
-                      : 'bg-black/45 hover:bg-black/65 text-white'
-                  }`}
-                >
-                  {muted || autoplayAudioBlocked ? (
-                    <VolumeX className="w-5 h-5" />
-                  ) : (
-                    <Volume2 className="w-5 h-5" />
+                {/* Tap-for-sound button when browser blocks initial unmuted autoplay */}
+                {isSlideActive && (autoplayAudioBlocked || muted) && slideSrc && (
+                  <button
+                    type="button"
+                    onClick={handleEnableSound}
+                    className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-10 h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>Tap to Hear Music &amp; Sound</span>
+                  </button>
+                )}
+
+                {/* Silent clip indicator with quick Add Music CTA for author */}
+                {isSlideActive &&
+                  !autoplayAudioBlocked &&
+                  !muted &&
+                  clipHasNoAudio &&
+                  (!vid.soundTrackId || vid.soundTrackId === 'original') &&
+                  slideSrc && (
+                    <div className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-10">
+                      {slideIsOwner ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void resumeSpotlightAudioContext();
+                            setEditingMusicTrackId('lofi');
+                            setEditMusicVideo(vid);
+                          }}
+                          className="h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
+                        >
+                          <Music2 className="w-4 h-4" />
+                          <span>Clip has no sound · Add Music</span>
+                        </button>
+                      ) : (
+                        <span className="h-8 px-3 rounded-full bg-black/65 text-white/85 text-[11px] font-medium flex items-center gap-1.5 whitespace-nowrap backdrop-blur-xs">
+                          <VolumeX className="w-3.5 h-3.5 text-white/70" />
+                          <span>Silent video (no audio track)</span>
+                        </span>
+                      )}
+                    </div>
                   )}
-                </button>
-              </div>
 
-              {/* Tap-for-sound pill when browser blocks initial unmuted autoplay */}
-              {(autoplayAudioBlocked || muted) && resolvedSrc && (
-                <button
-                  type="button"
-                  onClick={handleEnableSound}
-                  className="absolute top-16 left-1/2 -translate-x-1/2 z-20 h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
-                >
-                  <Volume2 className="w-4 h-4" />
-                  <span>Tap to Hear Music &amp; Sound</span>
-                </button>
-              )}
+                {/* Center Pause Indicator */}
+                {isSlideActive && paused && slideSrc && (
+                  <button
+                    type="button"
+                    onClick={togglePlayPause}
+                    aria-label="Resume video"
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 cursor-pointer"
+                  >
+                    <span className="w-16 h-16 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs">
+                      <Play className="w-7 h-7 fill-white ml-0.5" />
+                    </span>
+                  </button>
+                )}
 
-              {/* Silent clip indicator with quick Add Music CTA for author */}
-              {!autoplayAudioBlocked &&
-                !muted &&
-                clipHasNoAudio &&
-                (!activeVideo.soundTrackId || activeVideo.soundTrackId === 'original') &&
-                resolvedSrc && (
-                  <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20">
-                    {isOwner ? (
+                {/* Floating Bottom Metadata + Floating Right Action Rail */}
+                <div className="absolute inset-x-0 bottom-[4.25rem] md:bottom-6 px-4 sm:px-6 z-10 flex items-end justify-between gap-4 pointer-events-none">
+                  {/* Creator Info & Caption */}
+                  <div className="min-w-0 flex-1 max-w-xl space-y-2 pointer-events-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar
+                        name={vid.authorName}
+                        photoURL={slideAuthorProfile?.photoURL || vid.authorPhotoURL}
+                        avatarSeed={slideAuthorProfile?.avatarSeed || vid.authorAvatarSeed}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-white truncate">{vid.authorName}</p>
+                        <p className="text-xs text-white/80 truncate">
+                          @{vid.authorHandle} · {formatRelativeTime(vid.createdAt)}
+                        </p>
+                      </div>
+                      {!slideIsOwner && onToggleFollow && (
+                        <button
+                          type="button"
+                          onClick={() => void onToggleFollow(vid.authorId, slideIsFollowing)}
+                          className={`h-7 px-2.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
+                            slideIsFollowing ? 'bg-white/20 text-white' : 'bg-[#FFFC00] text-slate-950'
+                          }`}
+                        >
+                          {slideIsFollowing ? (
+                            <>
+                              <UserCheck className="w-3 h-3" />
+                              <span>Following</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-3 h-3" />
+                              <span>Follow</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {vid.caption && (
+                      <p className="text-sm text-white leading-snug line-clamp-3">{vid.caption}</p>
+                    )}
+
+                    <div className="flex items-center gap-1.5 text-xs text-white/95">
+                      <Music2 className="w-3.5 h-3.5 text-[#FFFC00] shrink-0" />
+                      <span className="truncate font-medium">
+                        {vid.soundTitle || `Original Sound · ${vid.authorName}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Vertical Right Action Stack */}
+                  <div className="flex flex-col items-center gap-3 shrink-0 pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={() => void onToggleLike(vid)}
+                      aria-label={slideLikedByMe ? 'Unlike video' : 'Like video'}
+                      className="flex flex-col items-center gap-1 cursor-pointer group"
+                    >
+                      <span
+                        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 ${
+                          slideLikedByMe
+                            ? 'bg-rose-500 text-white'
+                            : 'bg-black/45 hover:bg-black/65 text-white'
+                        }`}
+                      >
+                        <Heart className={`w-5 h-5 ${slideLikedByMe ? 'fill-white' : ''}`} />
+                      </span>
+                      <span className="text-[11px] font-mono-tabular font-semibold text-white">
+                        {formatCompactCount(vid.likedBy.length)}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCommentsVideo(vid)}
+                      aria-label="Open comments"
+                      className="flex flex-col items-center gap-1 cursor-pointer"
+                    >
+                      <span className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90">
+                        <MessageSquare className="w-5 h-5" />
+                      </span>
+                      <span className="text-[11px] font-mono-tabular font-semibold text-white">
+                        {formatCompactCount(vid.commentCount || 0)}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShareVideo(vid)}
+                      aria-label="Send video to chat"
+                      className="flex flex-col items-center gap-1 cursor-pointer"
+                    >
+                      <span className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90">
+                        <Send className="w-5 h-5" />
+                      </span>
+                      <span className="text-[11px] font-medium text-white">Send</span>
+                    </button>
+
+                    {onSaveToMemory && slideSrc && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void onSaveToMemory(vid, slideSrc).then(() => {
+                            setSavedToastId(vid.id);
+                            setTimeout(() => setSavedToastId(null), 2000);
+                          });
+                        }}
+                        aria-label="Save video to Memories"
+                        className="flex flex-col items-center gap-1 cursor-pointer"
+                      >
+                        <span
+                          className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 ${
+                            savedToastId === vid.id
+                              ? 'bg-[#FFFC00] text-slate-950'
+                              : 'bg-black/45 hover:bg-black/65 text-white'
+                          }`}
+                        >
+                          <Bookmark className="w-5 h-5" />
+                        </span>
+                        <span className="text-[11px] font-medium text-white">
+                          {savedToastId === vid.id ? 'Saved!' : 'Save'}
+                        </span>
+                      </button>
+                    )}
+
+                    {!slideIsOwner && slideAuthorProfile && (
+                      <button
+                        type="button"
+                        onClick={() => void onStartDirectChat(slideAuthorProfile)}
+                        aria-label={`Chat with ${vid.authorName}`}
+                        className="flex flex-col items-center gap-1 cursor-pointer"
+                      >
+                        <span className="w-11 h-11 rounded-full bg-[#00A6FF] hover:bg-[#0090E0] text-white flex items-center justify-center transition-transform active:scale-90">
+                          <MessageCircle className="w-5 h-5" />
+                        </span>
+                        <span className="text-[11px] font-medium text-white">Chat</span>
+                      </button>
+                    )}
+
+                    {slideIsOwner && (
                       <button
                         type="button"
                         onClick={() => {
                           void resumeSpotlightAudioContext();
-                          setEditingMusicTrackId('lofi');
-                          setEditMusicVideo(activeVideo);
+                          setEditingMusicTrackId(
+                            vid.soundTrackId && vid.soundTrackId !== 'original'
+                              ? vid.soundTrackId
+                              : 'lofi'
+                          );
+                          setEditMusicVideo(vid);
                         }}
-                        className="h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
+                        aria-label="Add or change music track"
+                        className="flex flex-col items-center gap-1 cursor-pointer"
                       >
-                        <Music2 className="w-4 h-4" />
-                        <span>Clip has no sound · Add Music</span>
+                        <span className="w-11 h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 flex items-center justify-center transition-transform active:scale-90">
+                          <Music2 className="w-5 h-5" />
+                        </span>
+                        <span className="text-[11px] font-medium text-white">Music</span>
                       </button>
-                    ) : (
-                      <span className="h-8 px-3 rounded-full bg-black/65 text-white/85 text-[11px] font-medium flex items-center gap-1.5 whitespace-nowrap backdrop-blur-xs">
-                        <VolumeX className="w-3.5 h-3.5 text-white/70" />
-                        <span>Silent video (no audio track)</span>
-                      </span>
                     )}
-                  </div>
-                )}
 
-              {/* Center Pause Indicator */}
-              {paused && resolvedSrc && (
-                <button
-                  type="button"
-                  onClick={togglePlayPause}
-                  aria-label="Resume video"
-                  className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
-                >
-                  <span className="w-16 h-16 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs">
-                    <Play className="w-7 h-7 fill-white ml-0.5" />
-                  </span>
-                </button>
-              )}
-
-              {/* Bottom Scrim & Metadata + Right Action Column */}
-              <div className="absolute inset-x-0 bottom-0 pt-20 pb-4 px-4 bg-gradient-to-t from-black/85 via-black/45 to-transparent flex items-end justify-between gap-3 pointer-events-none">
-                {/* Creator Info & Caption */}
-                <div className="min-w-0 flex-1 space-y-2 pointer-events-auto">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar
-                      name={activeVideo.authorName}
-                      photoURL={activeAuthorProfile?.photoURL || activeVideo.authorPhotoURL}
-                      avatarSeed={activeAuthorProfile?.avatarSeed || activeVideo.authorAvatarSeed}
-                      size="sm"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-white truncate">
-                        {activeVideo.authorName}
-                      </p>
-                      <p className="text-xs text-white/75 truncate">
-                        @{activeVideo.authorHandle} · {formatRelativeTime(activeVideo.createdAt)}
-                      </p>
-                    </div>
-                    {!isOwner && onToggleFollow && (
+                    {slideIsOwner && (
                       <button
                         type="button"
                         onClick={() => {
-                          const following = (currentUser.following || []).includes(activeVideo.authorId);
-                          void onToggleFollow(activeVideo.authorId, following);
+                          if (confirmDeleteId === vid.id) {
+                            void onDeleteVideo(vid);
+                            setConfirmDeleteId(null);
+                          } else {
+                            setConfirmDeleteId(vid.id);
+                          }
                         }}
-                        className={`h-7 px-2.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
-                          (currentUser.following || []).includes(activeVideo.authorId)
-                            ? 'bg-white/20 text-white'
-                            : 'bg-[#FFFC00] text-slate-950'
-                        }`}
+                        aria-label="Delete Spotlight video"
+                        className="flex flex-col items-center gap-1 cursor-pointer"
                       >
-                        {(currentUser.following || []).includes(activeVideo.authorId) ? (
-                          <>
-                            <UserCheck className="w-3 h-3" />
-                            <span>Following</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-3 h-3" />
-                            <span>Follow</span>
-                          </>
-                        )}
+                        <span
+                          className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-colors ${
+                            confirmDeleteId === vid.id
+                              ? 'bg-rose-600 text-white'
+                              : 'bg-black/45 hover:bg-rose-600/90 text-white'
+                          }`}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </span>
+                        <span className="text-[11px] font-medium text-white">
+                          {confirmDeleteId === vid.id ? 'Confirm' : 'Delete'}
+                        </span>
                       </button>
                     )}
-                  </div>
 
-                  {activeVideo.caption && (
-                    <p className="text-sm text-white leading-snug line-clamp-3">
-                      {activeVideo.caption}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-1.5 text-xs text-white/90">
-                    <Music2 className="w-3.5 h-3.5 text-[#FFFC00] shrink-0" />
-                    <span className="truncate font-medium">
-                      {activeVideo.soundTitle || `Original Sound · ${activeVideo.authorName}`}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Vertical Right Action Stack */}
-                <div className="flex flex-col items-center gap-3 shrink-0 pointer-events-auto">
-                  <button
-                    type="button"
-                    onClick={() => void onToggleLike(activeVideo)}
-                    aria-label={isLikedByMe ? 'Unlike video' : 'Like video'}
-                    className="flex flex-col items-center gap-1 cursor-pointer group"
-                  >
-                    <span
-                      className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 ${
-                        isLikedByMe
-                          ? 'bg-rose-500 text-white'
-                          : 'bg-black/45 hover:bg-black/65 text-white'
-                      }`}
-                    >
-                      <Heart className={`w-5 h-5 ${isLikedByMe ? 'fill-white' : ''}`} />
-                    </span>
-                    <span className="text-[11px] font-mono-tabular font-semibold text-white">
-                      {formatCompactCount(activeVideo.likedBy.length)}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setCommentsVideo(activeVideo)}
-                    aria-label="Open comments"
-                    className="flex flex-col items-center gap-1 cursor-pointer"
-                  >
-                    <span className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90">
-                      <MessageSquare className="w-5 h-5" />
-                    </span>
-                    <span className="text-[11px] font-mono-tabular font-semibold text-white">
-                      {formatCompactCount(activeVideo.commentCount || 0)}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShareVideo(activeVideo)}
-                    aria-label="Send video to chat"
-                    className="flex flex-col items-center gap-1 cursor-pointer"
-                  >
-                    <span className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90">
-                      <Send className="w-5 h-5" />
-                    </span>
-                    <span className="text-[11px] font-medium text-white">Send</span>
-                  </button>
-
-                  {onSaveToMemory && resolvedSrc && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void onSaveToMemory(activeVideo, resolvedSrc).then(() => {
-                          setSavedToastId(activeVideo.id);
-                          setTimeout(() => setSavedToastId(null), 2000);
-                        });
-                      }}
-                      aria-label="Save video to Memories"
-                      className="flex flex-col items-center gap-1 cursor-pointer"
-                    >
-                      <span
-                        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 ${
-                          savedToastId === activeVideo.id
-                            ? 'bg-[#FFFC00] text-slate-950'
-                            : 'bg-black/45 hover:bg-black/65 text-white'
-                        }`}
+                    <div className="flex flex-col gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => scrollToSlide(idx - 1)}
+                        aria-label="Previous video"
+                        className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 disabled:opacity-35 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
                       >
-                        <Bookmark className="w-5 h-5" />
-                      </span>
-                      <span className="text-[11px] font-medium text-white">
-                        {savedToastId === activeVideo.id ? 'Saved!' : 'Save'}
-                      </span>
-                    </button>
-                  )}
-
-                  {!isOwner && activeAuthorProfile && (
-                    <button
-                      type="button"
-                      onClick={() => void onStartDirectChat(activeAuthorProfile)}
-                      aria-label={`Chat with ${activeVideo.authorName}`}
-                      className="flex flex-col items-center gap-1 cursor-pointer"
-                    >
-                      <span className="w-11 h-11 rounded-full bg-[#00A6FF] hover:bg-[#0090E0] text-white flex items-center justify-center transition-transform active:scale-90">
-                        <MessageCircle className="w-5 h-5" />
-                      </span>
-                      <span className="text-[11px] font-medium text-white">Chat</span>
-                    </button>
-                  )}
-
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void resumeSpotlightAudioContext();
-                        setEditingMusicTrackId(
-                          activeVideo.soundTrackId && activeVideo.soundTrackId !== 'original'
-                            ? activeVideo.soundTrackId
-                            : 'lofi'
-                        );
-                        setEditMusicVideo(activeVideo);
-                      }}
-                      aria-label="Add or change music track"
-                      className="flex flex-col items-center gap-1 cursor-pointer"
-                    >
-                      <span className="w-11 h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 flex items-center justify-center transition-transform active:scale-90">
-                        <Music2 className="w-5 h-5" />
-                      </span>
-                      <span className="text-[11px] font-medium text-white">Music</span>
-                    </button>
-                  )}
-
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirmDeleteId === activeVideo.id) {
-                          void onDeleteVideo(activeVideo);
-                          setConfirmDeleteId(null);
-                        } else {
-                          setConfirmDeleteId(activeVideo.id);
-                        }
-                      }}
-                      aria-label="Delete Spotlight video"
-                      className="flex flex-col items-center gap-1 cursor-pointer"
-                    >
-                      <span
-                        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-xs transition-colors ${
-                          confirmDeleteId === activeVideo.id
-                            ? 'bg-rose-600 text-white'
-                            : 'bg-black/45 hover:bg-rose-600/90 text-white'
-                        }`}
+                        <ChevronUp className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx >= filteredVideos.length - 1}
+                        onClick={() => scrollToSlide(idx + 1)}
+                        aria-label="Next video"
+                        className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 disabled:opacity-35 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
                       >
-                        <Trash2 className="w-5 h-5" />
-                      </span>
-                      <span className="text-[11px] font-medium text-white">
-                        {confirmDeleteId === activeVideo.id ? 'Confirm' : 'Delete'}
-                      </span>
-                    </button>
-                  )}
-
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      disabled={safeIndex === 0}
-                      onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
-                      aria-label="Previous video"
-                      className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 disabled:opacity-35 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
-                    >
-                      <ChevronUp className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={safeIndex >= filteredVideos.length - 1}
-                      onClick={() =>
-                        setActiveIndex((i) => Math.min(filteredVideos.length - 1, i + 1))
-                      }
-                      aria-label="Next video"
-                      className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 disabled:opacity-35 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
-                    >
-                      <ChevronDown className="w-5 h-5" />
-                    </button>
+                        <ChevronDown className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Desktop Wide-Screen Up Next Queue & Creator Rail */}
-            <aside className="hidden lg:flex flex-col w-80 h-full max-h-[760px] bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shrink-0">
-              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <h2 className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                    Up Next
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {filteredVideos.length} {filteredVideos.length === 1 ? 'video' : 'videos'} · 720p HD
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={togglePlayPause}
-                  className="h-8 px-3 rounded-lg bg-[#F4F6F9] dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
-                >
-                  {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-                  <span>{paused ? 'Play' : 'Pause'}</span>
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto chat-scroll p-2.5 space-y-1.5">
-                {filteredVideos.map((vid, idx) => {
-                  const selected = idx === safeIndex;
-                  const liked = vid.likedBy.includes(currentUser.uid);
-                  return (
-                    <button
-                      key={vid.id}
-                      type="button"
-                      onClick={() => setActiveIndex(idx)}
-                      className={`w-full p-2.5 rounded-2xl flex items-center gap-3 text-left transition-colors cursor-pointer ${
-                        selected
-                          ? 'bg-[#FFFC00]/25 dark:bg-[#FFFC00]/15 ring-1 ring-[#FFFC00]'
-                          : 'hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <div className="relative w-12 h-14 rounded-xl overflow-hidden bg-slate-900 text-white flex items-center justify-center shrink-0">
-                        {vid.videoData ? (
-                          <video
-                            src={vid.videoData}
-                            muted
-                            playsInline
-                            preload="metadata"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Film className="w-5 h-5 text-[#FFFC00]" />
-                        )}
-                        {selected && (
-                          <span className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                            <Play className="w-4 h-4 text-white fill-white" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                          {vid.authorName}
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5">
-                          {vid.caption || vid.soundTitle}
-                        </p>
-                        <div className="flex items-center gap-2.5 mt-1 text-[11px] font-mono-tabular text-slate-500 dark:text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <Heart
-                              className={`w-3 h-3 ${liked ? 'text-rose-500 fill-rose-500' : ''}`}
-                            />
-                            {vid.likedBy.length}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            {vid.viewCount}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-[#F9FAFC] dark:bg-[#0D131F] flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onOpenCameraForSpotlight}
-                  className="flex-1 h-10 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>Record 720p</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowUploadModal(true)}
-                  className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#121824] text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Upload</span>
-                </button>
-              </div>
-            </aside>
-          </div>
-        )}
-      </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
 
       {/* Upload / Post Spotlight Video Modal */}
       {showUploadModal && (
