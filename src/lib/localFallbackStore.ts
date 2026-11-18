@@ -172,8 +172,25 @@ export function subscribeLocalCacheKey<T>(
   };
 }
 
+export async function mergeServerCacheList<T extends { id?: string; conversationId?: string }>(
+  key: string,
+  serverList: T[]
+): Promise<T[]> {
+  const existing = (await cacheGet<T[]>(key)) || [];
+  const serverKeys = new Set(
+    serverList.map((item) => item.id || item.conversationId).filter(Boolean)
+  );
+  const localOnly = existing.filter((item) => {
+    const id = item.id || item.conversationId || '';
+    return id.startsWith('local_') && !serverKeys.has(id);
+  });
+  const merged = [...localOnly, ...serverList];
+  await cacheSet(key, merged);
+  return merged;
+}
+
 function makeLocalId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `local_${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export async function bootstrapLocalSavedChat(profile: PublicProfile): Promise<void> {

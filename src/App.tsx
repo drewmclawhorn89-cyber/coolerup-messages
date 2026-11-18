@@ -23,11 +23,20 @@ import { SnapViewerModal } from './components/SnapViewerModal';
 import { SpotlightFeedPanel } from './components/SpotlightFeedPanel';
 import { StoriesPanel } from './components/StoriesPanel';
 import { StoryViewerModal } from './components/StoryViewerModal';
-import { auth, db, handleFirestoreError, isQuotaExceededError, OperationType } from './lib/firebase';
+import {
+  auth,
+  db,
+  handleFirestoreError,
+  isQuotaExceededError,
+  isReadQuotaPaused,
+  markReadQuotaExceeded,
+  OperationType,
+} from './lib/firebase';
 import {
   bootstrapLocalSavedChat,
   cacheGet,
   cacheSet,
+  mergeServerCacheList,
   subscribeLocalCacheKey,
 } from './lib/localFallbackStore';
 import { LIMITS, transcodeVideoFileToBoundedDataUrl } from './lib/validation';
@@ -174,7 +183,13 @@ export default function App() {
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
     const uid = currentUserProfile.uid;
-    let fallbackUnsub: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<PublicProfile>(`profile_${uid}`, (cached) => {
+      if (cached) setCurrentUserProfile(cached);
+    });
+    if (isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+
     const unsub = onSnapshot(
       query(collection(db, 'profiles'), where('uid', '==', uid)),
       (snap) => {
@@ -186,9 +201,7 @@ export default function App() {
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          fallbackUnsub = subscribeLocalCacheKey<PublicProfile>(`profile_${uid}`, (cached) => {
-            if (cached) setCurrentUserProfile(cached);
-          });
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, `profiles/${uid}`);
@@ -196,13 +209,19 @@ export default function App() {
     );
     return () => {
       unsub();
-      fallbackUnsub?.();
+      unsubLocal();
     };
   }, [currentUserProfile?.uid]);
 
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
-    let fallbackUnsub: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<PublicProfile[]>('profiles', (cached) => {
+      if (cached) setProfiles(cached);
+    });
+    if (isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+
     const unsub = onSnapshot(
       query(collection(db, 'profiles'), where('isDiscoverable', '==', true), limit(40)),
       (snap) => {
@@ -212,9 +231,7 @@ export default function App() {
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          fallbackUnsub = subscribeLocalCacheKey<PublicProfile[]>('profiles', (cached) => {
-            if (cached) setProfiles(cached);
-          });
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, 'profiles');
@@ -222,7 +239,7 @@ export default function App() {
     );
     return () => {
       unsub();
-      fallbackUnsub?.();
+      unsubLocal();
     };
   }, [currentUserProfile?.uid]);
 
@@ -230,26 +247,42 @@ export default function App() {
     if (!currentUserProfile?.uid) return;
     const uid = currentUserProfile.uid;
     const path = `users/${uid}/chats`;
-    let fallbackUnsub: (() => void) | null = null;
+
+    const unsubLocal = subscribeLocalCacheKey<UserChatIndex[]>(`chats_${uid}`, (cached) => {
+      if (cached) setChats(cached);
+    });
+
+    if (isReadQuotaPaused()) {
+      void cacheGet<UserChatIndex[]>(`chats_${uid}`).then(async (cached) => {
+        if ((!cached || cached.length === 0) && currentUserProfile) {
+          await bootstrapLocalSavedChat(currentUserProfile);
+        }
+        const ready = await cacheGet<UserChatIndex[]>(`chats_${uid}`);
+        if (ready) setChats(ready);
+      });
+      return () => unsubLocal();
+    }
 
     const unsub = onSnapshot(
       query(collection(db, 'users', uid, 'chats'), orderBy('lastMessageAt', 'desc')),
       (snap) => {
         const list = snap.docs.map((d) => d.data() as UserChatIndex);
-        setChats(list);
-        void cacheSet(`chats_${uid}`, list);
+        void mergeServerCacheList<UserChatIndex>(`chats_${uid}`, list).then((merged) => {
+          merged.sort(
+            (a, b) => (b.lastMessageAt?.toMillis?.() ?? 0) - (a.lastMessageAt?.toMillis?.() ?? 0)
+          );
+          setChats(merged);
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
+          markReadQuotaExceeded();
           void cacheGet<UserChatIndex[]>(`chats_${uid}`).then(async (cached) => {
             if ((!cached || cached.length === 0) && currentUserProfile) {
               await bootstrapLocalSavedChat(currentUserProfile);
             }
             const ready = await cacheGet<UserChatIndex[]>(`chats_${uid}`);
             if (ready) setChats(ready);
-          });
-          fallbackUnsub = subscribeLocalCacheKey<UserChatIndex[]>(`chats_${uid}`, (cached) => {
-            if (cached) setChats(cached);
           });
           return;
         }
@@ -258,26 +291,31 @@ export default function App() {
     );
     return () => {
       unsub();
-      fallbackUnsub?.();
+      unsubLocal();
     };
   }, [currentUserProfile?.uid]);
 
   // Live 24-hour Stories subscription
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
-    let fallbackUnsub: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<Story[]>('stories', (cached) => {
+      if (cached) setStories(cached);
+    });
+    if (isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+
     const unsub = onSnapshot(
       query(collection(db, 'stories'), where('isPublicStory', '==', true), limit(30)),
       (snap) => {
         const list = snap.docs.map((d) => d.data() as Story);
-        setStories(list);
-        void cacheSet('stories', list);
+        void mergeServerCacheList<Story>('stories', list).then((merged) => {
+          setStories(merged);
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          fallbackUnsub = subscribeLocalCacheKey<Story[]>('stories', (cached) => {
-            if (cached) setStories(cached);
-          });
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, 'stories');
@@ -285,29 +323,34 @@ export default function App() {
     );
     return () => {
       unsub();
-      fallbackUnsub?.();
+      unsubLocal();
     };
   }, [currentUserProfile?.uid]);
 
   // Live Spotlight Video Feed subscription
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
-    let fallbackUnsub: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<SpotlightVideo[]>('spotlightVideos', (cached) => {
+      if (cached) setSpotlightVideos(cached);
+    });
+    if (isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+
     const unsub = onSnapshot(
       query(collection(db, 'spotlightVideos'), where('isPublic', '==', true), limit(20)),
       (snap) => {
         const list = snap.docs.map((d) => d.data() as SpotlightVideo);
-        list.sort(
-          (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
-        );
-        setSpotlightVideos(list);
-        void cacheSet('spotlightVideos', list);
+        void mergeServerCacheList<SpotlightVideo>('spotlightVideos', list).then((merged) => {
+          merged.sort(
+            (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+          );
+          setSpotlightVideos(merged);
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          fallbackUnsub = subscribeLocalCacheKey<SpotlightVideo[]>('spotlightVideos', (cached) => {
-            if (cached) setSpotlightVideos(cached);
-          });
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, 'spotlightVideos');
@@ -315,7 +358,7 @@ export default function App() {
     );
     return () => {
       unsub();
-      fallbackUnsub?.();
+      unsubLocal();
     };
   }, [currentUserProfile?.uid]);
 
@@ -323,19 +366,24 @@ export default function App() {
   useEffect(() => {
     if (!currentUserProfile?.uid) return;
     const uid = currentUserProfile.uid;
-    let fallbackUnsub: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<Friendship[]>(`friendships_${uid}`, (cached) => {
+      if (cached) setFriendships(cached);
+    });
+    if (isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+
     const unsub = onSnapshot(
       query(collection(db, 'friendships'), where('userIds', 'array-contains', uid)),
       (snap) => {
         const list = snap.docs.map((d) => d.data() as Friendship);
-        setFriendships(list);
-        void cacheSet(`friendships_${uid}`, list);
+        void mergeServerCacheList<Friendship>(`friendships_${uid}`, list).then((merged) => {
+          setFriendships(merged);
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          fallbackUnsub = subscribeLocalCacheKey<Friendship[]>(`friendships_${uid}`, (cached) => {
-            if (cached) setFriendships(cached);
-          });
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, 'friendships');
@@ -343,7 +391,7 @@ export default function App() {
     );
     return () => {
       unsub();
-      fallbackUnsub?.();
+      unsubLocal();
     };
   }, [currentUserProfile?.uid]);
 
@@ -369,25 +417,6 @@ export default function App() {
       });
     }
   }, [pendingHandleInvite, currentUserProfile, profiles]);
-
-  useEffect(() => {
-    if (!currentUserProfile?.uid) return;
-    const uid = currentUserProfile.uid;
-
-    const handleVisibility = () => {
-      void setUserOnlineStatus(uid, document.visibilityState === 'visible');
-    };
-    const handleUnload = () => {
-      void setUserOnlineStatus(uid, false);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('beforeunload', handleUnload);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [currentUserProfile?.uid]);
 
   const profilesByUid = useMemo(() => {
     const map: Record<string, PublicProfile> = {};

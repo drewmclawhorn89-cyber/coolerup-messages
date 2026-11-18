@@ -14,7 +14,16 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, isQuotaExceededError, OperationType } from '../lib/firebase';
+import {
+  auth,
+  db,
+  handleFirestoreError,
+  isQuotaExceededError,
+  isWriteQuotaPaused,
+  OperationType,
+  runFirestoreRead,
+  runFirestoreWrite,
+} from '../lib/firebase';
 import {
   appendLocalMessage,
   bootstrapLocalSavedChat,
@@ -82,17 +91,16 @@ export async function syncUserOnSignIn(user: User): Promise<{
   const photoURL = (user.photoURL || '').slice(0, LIMITS.PHOTO_URL_MAX);
   const email = (user.email || '').slice(0, 254);
 
-  let existingProfile: PublicProfile | null = null;
+  let existingProfile: PublicProfile | null = await cacheGet<PublicProfile>(`profile_${uid}`);
   let quotaHit = false;
   try {
-    const snap = await getDoc(doc(db, 'profiles', uid));
+    const snap = await runFirestoreRead(() => getDoc(doc(db, 'profiles', uid)));
     if (snap.exists()) {
       existingProfile = snap.data() as PublicProfile;
     }
   } catch (error) {
     if (isQuotaExceededError(error)) {
       quotaHit = true;
-      existingProfile = await cacheGet<PublicProfile>(`profile_${uid}`);
     } else {
       handleFirestoreError(error, OperationType.GET, profilePath);
     }
@@ -102,21 +110,23 @@ export async function syncUserOnSignIn(user: User): Promise<{
     const handleSeed = user.email ? user.email.split('@')[0] : displayName;
     const handle = sanitizeHandle(handleSeed, uid);
     try {
-      await setDoc(doc(db, 'profiles', uid), {
-        uid,
-        displayName,
-        displayNameLower: displayName.toLowerCase(),
-        handle,
-        photoURL,
-        avatarSeed: '',
-        statusText: 'Snapping on CoolerUp',
-        snapScore: 0,
-        isOnline: true,
-        isDiscoverable: true,
-        lastSeenAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      await runFirestoreWrite(() =>
+        setDoc(doc(db, 'profiles', uid), {
+          uid,
+          displayName,
+          displayNameLower: displayName.toLowerCase(),
+          handle,
+          photoURL,
+          avatarSeed: '',
+          statusText: 'Snapping on CoolerUp',
+          snapScore: 0,
+          isOnline: true,
+          isDiscoverable: true,
+          lastSeenAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
     } catch (error) {
       if (isQuotaExceededError(error)) {
         quotaHit = true;
@@ -124,56 +134,53 @@ export async function syncUserOnSignIn(user: User): Promise<{
         handleFirestoreError(error, OperationType.CREATE, profilePath);
       }
     }
-  } else if (existingProfile && !quotaHit) {
-    // Only write on sign-in when fields actually need updating, and never crash login on quota limits
-    const needsOnlineUpdate = !existingProfile.isOnline || (photoURL && photoURL !== existingProfile.photoURL);
-    if (needsOnlineUpdate) {
-      try {
-        await updateDoc(doc(db, 'profiles', uid), {
-          isOnline: true,
-          snapScore: existingProfile.snapScore ?? 0,
-          lastSeenAt: serverTimestamp(),
+  } else if (existingProfile && !quotaHit && photoURL && photoURL !== existingProfile.photoURL) {
+    // Only write on sign-in if the Google avatar URL actually changed (saves write quota on every reload)
+    try {
+      await runFirestoreWrite(() =>
+        updateDoc(doc(db, 'profiles', uid), {
+          photoURL,
           updatedAt: serverTimestamp(),
-          ...(photoURL && photoURL !== existingProfile.photoURL ? { photoURL } : {}),
-        });
-      } catch (error) {
-        if (isQuotaExceededError(error)) {
-          quotaHit = true;
-        } else {
-          handleFirestoreError(error, OperationType.UPDATE, profilePath);
-        }
+        })
+      );
+    } catch (error) {
+      if (isQuotaExceededError(error)) {
+        quotaHit = true;
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, profilePath);
       }
     }
   }
 
-  let existingPrivate: PrivateUserInfo | null = null;
+  let existingPrivate: PrivateUserInfo | null = await cacheGet<PrivateUserInfo>(`private_${uid}`);
   if (!quotaHit) {
     try {
-      const privSnap = await getDoc(doc(db, 'users', uid, 'private', 'info'));
+      const privSnap = await runFirestoreRead(() =>
+        getDoc(doc(db, 'users', uid, 'private', 'info'))
+      );
       if (privSnap.exists()) {
         existingPrivate = privSnap.data() as PrivateUserInfo;
       }
     } catch (error) {
       if (isQuotaExceededError(error)) {
         quotaHit = true;
-        existingPrivate = await cacheGet<PrivateUserInfo>(`private_${uid}`);
       } else {
         handleFirestoreError(error, OperationType.GET, privatePath);
       }
     }
-  } else {
-    existingPrivate = await cacheGet<PrivateUserInfo>(`private_${uid}`);
   }
 
-  if (!existingPrivate && !quotaHit) {
+  if (!existingPrivate && !quotaHit && !isWriteQuotaPaused()) {
     try {
-      await setDoc(doc(db, 'users', uid, 'private', 'info'), {
-        uid,
-        email,
-        themeMode: 'light',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      await runFirestoreWrite(() =>
+        setDoc(doc(db, 'users', uid, 'private', 'info'), {
+          uid,
+          email,
+          themeMode: 'light',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
     } catch (error) {
       if (isQuotaExceededError(error)) {
         quotaHit = true;
@@ -181,12 +188,20 @@ export async function syncUserOnSignIn(user: User): Promise<{
         handleFirestoreError(error, OperationType.CREATE, privatePath);
       }
     }
-  } else if (existingPrivate && email && email !== existingPrivate.email && !quotaHit) {
+  } else if (
+    existingPrivate &&
+    email &&
+    email !== existingPrivate.email &&
+    !quotaHit &&
+    !isWriteQuotaPaused()
+  ) {
     try {
-      await updateDoc(doc(db, 'users', uid, 'private', 'info'), {
-        email,
-        updatedAt: serverTimestamp(),
-      });
+      await runFirestoreWrite(() =>
+        updateDoc(doc(db, 'users', uid, 'private', 'info'), {
+          email,
+          updatedAt: serverTimestamp(),
+        })
+      );
     } catch (error) {
       if (isQuotaExceededError(error)) {
         quotaHit = true;
@@ -199,7 +214,7 @@ export async function syncUserOnSignIn(user: User): Promise<{
   let finalProfile = existingProfile;
   if (!finalProfile && !quotaHit) {
     try {
-      const snap = await getDoc(doc(db, 'profiles', uid));
+      const snap = await runFirestoreRead(() => getDoc(doc(db, 'profiles', uid)));
       if (snap.exists()) finalProfile = snap.data() as PublicProfile;
     } catch (error) {
       if (!isQuotaExceededError(error)) {
@@ -211,7 +226,9 @@ export async function syncUserOnSignIn(user: User): Promise<{
   let finalPrivate = existingPrivate;
   if (!finalPrivate && !quotaHit) {
     try {
-      const snap = await getDoc(doc(db, 'users', uid, 'private', 'info'));
+      const snap = await runFirestoreRead(() =>
+        getDoc(doc(db, 'users', uid, 'private', 'info'))
+      );
       if (snap.exists()) finalPrivate = snap.data() as PrivateUserInfo;
     } catch (error) {
       if (!isQuotaExceededError(error)) {
@@ -247,7 +264,7 @@ export async function syncUserOnSignIn(user: User): Promise<{
   await saveLocalProfile(resolvedProfile);
   await saveLocalPrivateInfo(resolvedPrivate);
   await bootstrapLocalSavedChat(resolvedProfile);
-  if (!quotaHit) {
+  if (!quotaHit && !isWriteQuotaPaused()) {
     await ensureSavedMessagesThread(resolvedProfile);
   }
 
@@ -258,10 +275,14 @@ async function ensureSavedMessagesThread(profile: PublicProfile): Promise<void> 
   const conversationId = `saved_${profile.uid}`;
   const chatPath = `users/${profile.uid}/chats/${conversationId}`;
   try {
-    const chatSnap = await getDoc(doc(db, 'users', profile.uid, 'chats', conversationId));
+    const chatSnap = await runFirestoreRead(() =>
+      getDoc(doc(db, 'users', profile.uid, 'chats', conversationId))
+    );
     if (chatSnap.exists()) return;
 
-    const convSnap = await getDoc(doc(db, 'conversations', conversationId));
+    const convSnap = await runFirestoreRead(() =>
+      getDoc(doc(db, 'conversations', conversationId))
+    );
     const batch = writeBatch(db);
     if (!convSnap.exists()) {
       batch.set(doc(db, 'conversations', conversationId), {
@@ -326,7 +347,7 @@ async function ensureSavedMessagesThread(profile: PublicProfile): Promise<void> 
       updatedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.WRITE, chatPath);
@@ -337,6 +358,7 @@ let lastOnlineWriteAt = 0;
 let lastOnlineState: boolean | null = null;
 
 export async function setUserOnlineStatus(uid: string, isOnline: boolean): Promise<void> {
+  if (isWriteQuotaPaused()) return;
   const now = Date.now();
   if (lastOnlineState === isOnline && now - lastOnlineWriteAt < 60_000) {
     return;
@@ -346,11 +368,13 @@ export async function setUserOnlineStatus(uid: string, isOnline: boolean): Promi
 
   const path = `profiles/${uid}`;
   try {
-    await updateDoc(doc(db, 'profiles', uid), {
-      isOnline,
-      lastSeenAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'profiles', uid), {
+        isOnline,
+        lastSeenAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     const str = String(error);
     if (str.includes('Missing or insufficient permissions') || isQuotaExceededError(error)) {
@@ -376,17 +400,19 @@ export async function updateUserProfile(
   const cleanStatus = clampText(updates.statusText, LIMITS.STATUS_TEXT_MAX);
 
   try {
-    await updateDoc(doc(db, 'profiles', uid), {
-      displayName: cleanName,
-      displayNameLower: cleanName.toLowerCase(),
-      handle: cleanHandle,
-      statusText: cleanStatus,
-      isDiscoverable: updates.isDiscoverable,
-      ...(updates.avatarSeed !== undefined
-        ? { avatarSeed: updates.avatarSeed.slice(0, LIMITS.AVATAR_SEED_MAX) }
-        : {}),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'profiles', uid), {
+        displayName: cleanName,
+        displayNameLower: cleanName.toLowerCase(),
+        handle: cleanHandle,
+        statusText: cleanStatus,
+        isDiscoverable: updates.isDiscoverable,
+        ...(updates.avatarSeed !== undefined
+          ? { avatarSeed: updates.avatarSeed.slice(0, LIMITS.AVATAR_SEED_MAX) }
+          : {}),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalProfile(uid, {
@@ -411,10 +437,12 @@ export async function updateThemePreference(
 ): Promise<void> {
   const path = `users/${uid}/private/info`;
   try {
-    await updateDoc(doc(db, 'users', uid, 'private', 'info'), {
-      themeMode,
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'users', uid, 'private', 'info'), {
+        themeMode,
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalThemePreference(uid, themeMode);
@@ -436,26 +464,30 @@ export async function sendFriendRequest(
   const userIds = [me.uid, peer.uid].sort();
 
   try {
-    const snap = await getDoc(doc(db, 'friendships', friendshipId));
+    const snap = await runFirestoreRead(() => getDoc(doc(db, 'friendships', friendshipId)));
     if (!snap.exists()) {
-      await setDoc(doc(db, 'friendships', friendshipId), {
-        id: friendshipId,
-        userIds,
-        requesterId: me.uid,
-        receiverId: peer.uid,
-        status: 'pending',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      await runFirestoreWrite(() =>
+        setDoc(doc(db, 'friendships', friendshipId), {
+          id: friendshipId,
+          userIds,
+          requesterId: me.uid,
+          receiverId: peer.uid,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
     } else {
       const existing = snap.data();
       if (existing.status === 'accepted') return;
-      await updateDoc(doc(db, 'friendships', friendshipId), {
-        requesterId: me.uid,
-        receiverId: peer.uid,
-        status: 'pending',
-        updatedAt: serverTimestamp(),
-      });
+      await runFirestoreWrite(() =>
+        updateDoc(doc(db, 'friendships', friendshipId), {
+          requesterId: me.uid,
+          receiverId: peer.uid,
+          status: 'pending',
+          updatedAt: serverTimestamp(),
+        })
+      );
     }
   } catch (error) {
     if (isQuotaExceededError(error)) {
@@ -472,10 +504,12 @@ export async function respondToFriendRequest(
 ): Promise<void> {
   const path = `friendships/${friendshipId}`;
   try {
-    await updateDoc(doc(db, 'friendships', friendshipId), {
-      status: accept ? 'accepted' : 'declined',
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'friendships', friendshipId), {
+        status: accept ? 'accepted' : 'declined',
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       const uid = auth.currentUser?.uid;
@@ -489,7 +523,7 @@ export async function respondToFriendRequest(
 export async function removeFriendship(friendshipId: string): Promise<void> {
   const path = `friendships/${friendshipId}`;
   try {
-    await deleteDoc(doc(db, 'friendships', friendshipId));
+    await runFirestoreWrite(() => deleteDoc(doc(db, 'friendships', friendshipId)));
   } catch (error) {
     if (isQuotaExceededError(error)) {
       const uid = auth.currentUser?.uid;
@@ -503,8 +537,11 @@ export async function removeFriendship(friendshipId: string): Promise<void> {
 // --- Conversations & Messaging ---
 
 export async function getConversationById(conversationId: string): Promise<Conversation | null> {
+  if (conversationId.startsWith('local_')) {
+    return await cacheGet<Conversation>(`conv_${conversationId}`);
+  }
   try {
-    const snap = await getDoc(doc(db, 'conversations', conversationId));
+    const snap = await runFirestoreRead(() => getDoc(doc(db, 'conversations', conversationId)));
     if (snap.exists()) {
       const conv = snap.data() as Conversation;
       void cacheSet(`conv_${conversationId}`, conv);
@@ -532,38 +569,44 @@ export async function createOrOpenDirectChat(
   const convPath = `conversations/${conversationId}`;
 
   try {
-    const convSnap = await getDoc(doc(db, 'conversations', conversationId));
+    const convSnap = await runFirestoreRead(() =>
+      getDoc(doc(db, 'conversations', conversationId))
+    );
     if (convSnap.exists()) {
-      const myChatSnap = await getDoc(doc(db, 'users', me.uid, 'chats', conversationId));
+      const myChatSnap = await runFirestoreRead(() =>
+        getDoc(doc(db, 'users', me.uid, 'chats', conversationId))
+      );
       const convData = convSnap.data() as Conversation;
       if (!myChatSnap.exists()) {
-        await setDoc(doc(db, 'users', me.uid, 'chats', conversationId), {
-          conversationId,
-          userId: me.uid,
-          type: 'direct',
-          title: peer.displayName.slice(0, LIMITS.TITLE_MAX),
-          photoURL: peer.photoURL,
-          peerUid: peer.uid,
-          themeId: convData.themeId,
-          quickEmoji: convData.quickEmoji,
-          lastMessageKind: convData.lastMessageKind || 'text',
-          lastMediaType: convData.lastMediaType || 'text',
-          lastSnapStatus: convData.lastSnapStatus || 'sent',
-          lastSnapOpened: true,
-          streakCount: convData.streakCount || 0,
-          ...(convData.lastSnapAt ? { lastSnapAt: convData.lastSnapAt } : {}),
-          lastMessageText: convData.lastMessageText,
-          lastMessageSenderId: convData.lastMessageSenderId,
-          lastMessageSenderName: convData.lastMessageSenderName,
-          lastMessageAt: convData.lastMessageAt || serverTimestamp(),
-          lastReadAt: serverTimestamp(),
-          unreadCount: 0,
-          pinned: false,
-          muted: false,
-          archived: false,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        await runFirestoreWrite(() =>
+          setDoc(doc(db, 'users', me.uid, 'chats', conversationId), {
+            conversationId,
+            userId: me.uid,
+            type: 'direct',
+            title: peer.displayName.slice(0, LIMITS.TITLE_MAX),
+            photoURL: peer.photoURL,
+            peerUid: peer.uid,
+            themeId: convData.themeId,
+            quickEmoji: convData.quickEmoji,
+            lastMessageKind: convData.lastMessageKind || 'text',
+            lastMediaType: convData.lastMediaType || 'text',
+            lastSnapStatus: convData.lastSnapStatus || 'sent',
+            lastSnapOpened: true,
+            streakCount: convData.streakCount || 0,
+            ...(convData.lastSnapAt ? { lastSnapAt: convData.lastSnapAt } : {}),
+            lastMessageText: convData.lastMessageText,
+            lastMessageSenderId: convData.lastMessageSenderId,
+            lastMessageSenderName: convData.lastMessageSenderName,
+            lastMessageAt: convData.lastMessageAt || serverTimestamp(),
+            lastReadAt: serverTimestamp(),
+            unreadCount: 0,
+            pinned: false,
+            muted: false,
+            archived: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
       }
       return conversationId;
     }
@@ -673,7 +716,7 @@ export async function createOrOpenDirectChat(
       updatedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
     return conversationId;
   } catch (error) {
     if (isQuotaExceededError(error)) {
@@ -768,7 +811,7 @@ export async function createGroupChat(
       });
     }
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
     return conversationId;
   } catch (error) {
     if (isQuotaExceededError(error)) {
@@ -918,7 +961,23 @@ export async function sendMessage(params: {
       });
     }
 
-    await batch.commit();
+    if (conversation.id.startsWith('local_') || isWriteQuotaPaused()) {
+      await appendLocalMessage({
+        conversation,
+        sender,
+        kind,
+        mediaType,
+        text: cleanText,
+        imageData: cleanImage,
+        snapDurationSec,
+        previewText: clampedPreview,
+        nextStreak,
+        replyTo,
+      });
+      return;
+    }
+
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await appendLocalMessage({
@@ -975,7 +1034,7 @@ export async function markSnapViewed(
       });
     }
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversation.id, message.id, (m) => ({
@@ -1014,7 +1073,7 @@ export async function markSnapReplayed(
         updatedAt: serverTimestamp(),
       });
     }
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversation.id, message.id, (m) => ({
@@ -1051,7 +1110,7 @@ export async function markSnapScreenshotted(
         updatedAt: serverTimestamp(),
       });
     }
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversation.id, message.id, (m) => ({
@@ -1081,14 +1140,16 @@ export async function consumeAndDeleteSnapMedia(
 
   const msgPath = `conversations/${conversation.id}/messages/${message.id}`;
   try {
-    await updateDoc(doc(db, 'conversations', conversation.id, 'messages', message.id), {
-      imageData: '',
-      snapViewedBy: arrayUnion(viewerUid),
-      snapStatus: message.snapStatus && message.snapStatus !== 'delivered' && message.snapStatus !== 'sent'
-        ? message.snapStatus
-        : 'opened',
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'conversations', conversation.id, 'messages', message.id), {
+        imageData: '',
+        snapViewedBy: arrayUnion(viewerUid),
+        snapStatus: message.snapStatus && message.snapStatus !== 'delivered' && message.snapStatus !== 'sent'
+          ? message.snapStatus
+          : 'opened',
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) {
       await updateLocalMessageById(conversation.id, message.id, (m) => ({
@@ -1111,10 +1172,12 @@ export async function toggleSaveMessage(
   const msgPath = `conversations/${conversationId}/messages/${messageId}`;
   const isSaved = currentSavedBy.includes(uid);
   try {
-    await updateDoc(doc(db, 'conversations', conversationId, 'messages', messageId), {
-      savedBy: isSaved ? arrayRemove(uid) : arrayUnion(uid),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'conversations', conversationId, 'messages', messageId), {
+        savedBy: isSaved ? arrayRemove(uid) : arrayUnion(uid),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversationId, messageId, (m) => ({
@@ -1131,7 +1194,11 @@ export async function deleteUserChat(uid: string, conversationId: string): Promi
   if (conversationId === `saved_${uid}`) return;
   const path = `users/${uid}/chats/${conversationId}`;
   try {
-    await deleteDoc(doc(db, 'users', uid, 'chats', conversationId));
+    if (conversationId.startsWith('local_') || isWriteQuotaPaused()) {
+      await deleteLocalUserChat(uid, conversationId);
+      return;
+    }
+    await runFirestoreWrite(() => deleteDoc(doc(db, 'users', uid, 'chats', conversationId)));
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await deleteLocalUserChat(uid, conversationId);
@@ -1178,7 +1245,7 @@ export async function createStory(params: {
       updatedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
     return storyId;
   } catch (error) {
     if (isQuotaExceededError(error)) {
@@ -1189,12 +1256,15 @@ export async function createStory(params: {
 }
 
 export async function markStoryViewed(storyId: string, viewerUid: string): Promise<void> {
+  if (storyId.startsWith('local_') || isWriteQuotaPaused()) return;
   const path = `stories/${storyId}`;
   try {
-    await updateDoc(doc(db, 'stories', storyId), {
-      viewerIds: arrayUnion(viewerUid),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'stories', storyId), {
+        viewerIds: arrayUnion(viewerUid),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -1204,7 +1274,11 @@ export async function markStoryViewed(storyId: string, viewerUid: string): Promi
 export async function deleteStory(storyId: string): Promise<void> {
   const path = `stories/${storyId}`;
   try {
-    await deleteDoc(doc(db, 'stories', storyId));
+    if (storyId.startsWith('local_') || isWriteQuotaPaused()) {
+      await deleteLocalStory(storyId);
+      return;
+    }
+    await runFirestoreWrite(() => deleteDoc(doc(db, 'stories', storyId)));
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await deleteLocalStory(storyId);
@@ -1260,9 +1334,11 @@ export async function resolveSpotlightVideoSrc(video: SpotlightVideo): Promise<s
 
   const path = `spotlightVideos/${video.id}/chunks`;
   try {
-    const chunkSnaps = await Promise.all(
-      Array.from({ length: count }, (_, idx) =>
-        getDoc(doc(db, 'spotlightVideos', video.id, 'chunks', String(idx)))
+    const chunkSnaps = await runFirestoreRead(() =>
+      Promise.all(
+        Array.from({ length: count }, (_, idx) =>
+          getDoc(doc(db, 'spotlightVideos', video.id, 'chunks', String(idx)))
+        )
       )
     );
     const fullDataUrl = chunkSnaps
@@ -1341,45 +1417,51 @@ export async function createSpotlightVideo(params: {
         updatedAt: serverTimestamp(),
       });
 
-      await batch.commit();
+      await runFirestoreWrite(() => batch.commit());
       return videoId;
     }
 
-    await setDoc(videoRef, {
-      id: videoId,
-      authorId: author.uid,
-      authorName: author.displayName.slice(0, LIMITS.DISPLAY_NAME_MAX),
-      authorHandle: author.handle.slice(0, LIMITS.HANDLE_MAX),
-      authorPhotoURL: author.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
-      authorAvatarSeed: (author.avatarSeed || '').slice(0, LIMITS.AVATAR_SEED_MAX),
-      videoData: '',
-      chunkCount: chunks.length,
-      resolution: cleanResolution,
-      soundTrackId: cleanSoundId,
-      caption: caption.trim().slice(0, LIMITS.STORY_CAPTION_MAX),
-      soundTitle: cleanSound,
-      likedBy: [],
-      viewCount: 0,
-      isPublic: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      setDoc(videoRef, {
+        id: videoId,
+        authorId: author.uid,
+        authorName: author.displayName.slice(0, LIMITS.DISPLAY_NAME_MAX),
+        authorHandle: author.handle.slice(0, LIMITS.HANDLE_MAX),
+        authorPhotoURL: author.photoURL.slice(0, LIMITS.PHOTO_URL_MAX),
+        authorAvatarSeed: (author.avatarSeed || '').slice(0, LIMITS.AVATAR_SEED_MAX),
+        videoData: '',
+        chunkCount: chunks.length,
+        resolution: cleanResolution,
+        soundTrackId: cleanSoundId,
+        caption: caption.trim().slice(0, LIMITS.STORY_CAPTION_MAX),
+        soundTitle: cleanSound,
+        likedBy: [],
+        viewCount: 0,
+        isPublic: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
 
     // Write chunks cleanly in small groups to stay well below Firestore batch payload caps
     for (let i = 0; i < chunks.length; i += 3) {
       const slice = chunks.slice(i, i + 3);
-      await Promise.all(
-        slice.map((chunkData, subIdx) => {
-          const chunkIdx = i + subIdx;
-          return setDoc(doc(db, 'spotlightVideos', videoId, 'chunks', String(chunkIdx)), {
-            id: String(chunkIdx),
-            videoId,
-            authorId: author.uid,
-            index: chunkIdx,
-            data: chunkData,
-            createdAt: serverTimestamp(),
-          });
-        })
+      await runFirestoreWrite(
+        () =>
+          Promise.all(
+            slice.map((chunkData, subIdx) => {
+              const chunkIdx = i + subIdx;
+              return setDoc(doc(db, 'spotlightVideos', videoId, 'chunks', String(chunkIdx)), {
+                id: String(chunkIdx),
+                videoId,
+                authorId: author.uid,
+                index: chunkIdx,
+                data: chunkData,
+                createdAt: serverTimestamp(),
+              });
+            })
+          ),
+        10000
       );
     }
 
@@ -1392,7 +1474,7 @@ export async function createSpotlightVideo(params: {
       snapScore: increment(1),
       updatedAt: serverTimestamp(),
     });
-    await publishBatch.commit();
+    await runFirestoreWrite(() => publishBatch.commit());
     void cacheSet(`spotlight_media_${videoId}`, videoData);
 
     return videoId;
@@ -1419,10 +1501,19 @@ export async function toggleLikeSpotlightVideo(
   const path = `spotlightVideos/${videoId}`;
   const isLiked = currentLikedBy.includes(uid);
   try {
-    await updateDoc(doc(db, 'spotlightVideos', videoId), {
-      likedBy: isLiked ? arrayRemove(uid) : arrayUnion(uid),
-      updatedAt: serverTimestamp(),
-    });
+    if (videoId.startsWith('local_') || isWriteQuotaPaused()) {
+      await updateLocalSpotlightVideo(videoId, (v) => ({
+        ...v,
+        likedBy: isLiked ? v.likedBy.filter((id) => id !== uid) : [...v.likedBy, uid],
+      }));
+      return;
+    }
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'spotlightVideos', videoId), {
+        likedBy: isLiked ? arrayRemove(uid) : arrayUnion(uid),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalSpotlightVideo(videoId, (v) => ({
@@ -1435,13 +1526,21 @@ export async function toggleLikeSpotlightVideo(
   }
 }
 
+const viewedSpotlightInSession = new Set<string>();
+
 export async function incrementSpotlightView(videoId: string): Promise<void> {
+  if (videoId.startsWith('local_') || isWriteQuotaPaused() || viewedSpotlightInSession.has(videoId)) {
+    return;
+  }
+  viewedSpotlightInSession.add(videoId);
   const path = `spotlightVideos/${videoId}`;
   try {
-    await updateDoc(doc(db, 'spotlightVideos', videoId), {
-      viewCount: increment(1),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'spotlightVideos', videoId), {
+        viewCount: increment(1),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -1455,11 +1554,21 @@ export async function updateSpotlightVideoSound(
 ): Promise<void> {
   const path = `spotlightVideos/${videoId}`;
   try {
-    await updateDoc(doc(db, 'spotlightVideos', videoId), {
-      soundTrackId: soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX),
-      soundTitle: soundTitle.trim().slice(0, LIMITS.SOUND_TITLE_MAX),
-      updatedAt: serverTimestamp(),
-    });
+    if (videoId.startsWith('local_') || isWriteQuotaPaused()) {
+      await updateLocalSpotlightVideo(videoId, (v) => ({
+        ...v,
+        soundTrackId: soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX),
+        soundTitle: soundTitle.trim().slice(0, LIMITS.SOUND_TITLE_MAX),
+      }));
+      return;
+    }
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'spotlightVideos', videoId), {
+        soundTrackId: soundTrackId.slice(0, LIMITS.SOUND_TRACK_ID_MAX),
+        soundTitle: soundTitle.trim().slice(0, LIMITS.SOUND_TITLE_MAX),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalSpotlightVideo(videoId, (v) => ({
@@ -1476,14 +1585,20 @@ export async function updateSpotlightVideoSound(
 export async function deleteSpotlightVideo(videoId: string, chunkCount = 0): Promise<void> {
   const path = `spotlightVideos/${videoId}`;
   try {
+    if (videoId.startsWith('local_') || isWriteQuotaPaused()) {
+      await deleteLocalSpotlightVideo(videoId);
+      return;
+    }
     if (chunkCount > 0) {
-      await Promise.all(
-        Array.from({ length: chunkCount }, (_, idx) =>
-          deleteDoc(doc(db, 'spotlightVideos', videoId, 'chunks', String(idx)))
+      await runFirestoreWrite(() =>
+        Promise.all(
+          Array.from({ length: chunkCount }, (_, idx) =>
+            deleteDoc(doc(db, 'spotlightVideos', videoId, 'chunks', String(idx)))
+          )
         )
       );
     }
-    await deleteDoc(doc(db, 'spotlightVideos', videoId));
+    await runFirestoreWrite(() => deleteDoc(doc(db, 'spotlightVideos', videoId)));
     const cachedUrl = resolvedVideoUrlCache.get(videoId);
     if (cachedUrl) {
       URL.revokeObjectURL(cachedUrl);
@@ -1530,7 +1645,7 @@ export async function editMessage(
       }
     }
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversation.id, messageId, (m) => ({
@@ -1572,7 +1687,7 @@ export async function unsendMessage(
       }
     }
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversation.id, messageId, (m) => ({
@@ -1597,10 +1712,12 @@ export async function toggleMessageReaction(
   const msgPath = `conversations/${conversationId}/messages/${messageId}`;
   const alreadySame = currentReactions[uid] === emoji;
   try {
-    await updateDoc(doc(db, 'conversations', conversationId, 'messages', messageId), {
-      [`reactions.${uid}`]: alreadySame ? deleteField() : emoji.slice(0, LIMITS.QUICK_EMOJI_MAX),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'conversations', conversationId, 'messages', messageId), {
+        [`reactions.${uid}`]: alreadySame ? deleteField() : emoji.slice(0, LIMITS.QUICK_EMOJI_MAX),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalMessageById(conversationId, messageId, (m) => {
@@ -1620,13 +1737,16 @@ export async function setTypingStatus(
   uid: string,
   isTyping: boolean
 ): Promise<void> {
+  if (conversationId.startsWith('local_') || isWriteQuotaPaused()) return;
   const path = `conversations/${conversationId}/members/${uid}`;
   try {
-    await updateDoc(doc(db, 'conversations', conversationId, 'members', uid), {
-      isTyping,
-      typingAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'conversations', conversationId, 'members', uid), {
+        isTyping,
+        typingAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -1637,6 +1757,7 @@ export async function markConversationRead(
   conversationId: string,
   uid: string
 ): Promise<void> {
+  if (conversationId.startsWith('local_') || isWriteQuotaPaused()) return;
   const path = `users/${uid}/chats/${conversationId}`;
   try {
     const batch = writeBatch(db);
@@ -1649,7 +1770,7 @@ export async function markConversationRead(
       lastReadAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (String(error).includes('Missing or insufficient permissions') || isQuotaExceededError(error)) return;
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -1673,7 +1794,7 @@ export async function updateConversationAppearance(
     for (const memberId of conversation.memberIds) {
       batch.update(doc(db, 'users', memberId, 'chats', conversation.id), payload);
     }
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       const uid = auth.currentUser?.uid;
@@ -1691,10 +1812,12 @@ export async function updateUserChatFlags(
 ): Promise<void> {
   const path = `users/${uid}/chats/${conversationId}`;
   try {
-    await updateDoc(doc(db, 'users', uid, 'chats', conversationId), {
-      ...flags,
-      updatedAt: serverTimestamp(),
-    });
+    await runFirestoreWrite(() =>
+      updateDoc(doc(db, 'users', uid, 'chats', conversationId), {
+        ...flags,
+        updatedAt: serverTimestamp(),
+      })
+    );
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalUserChatIndex(uid, conversationId, flags);
@@ -1724,7 +1847,7 @@ export async function renameGroupChat(
         updatedAt: serverTimestamp(),
       });
     }
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       const uid = auth.currentUser?.uid;
@@ -1805,7 +1928,7 @@ export async function addMemberToGroupChat(
       updatedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await updateLocalConversation(conversation.id, { memberIds: nextMemberIds });
@@ -1861,7 +1984,7 @@ export async function leaveGroupChat(
     }
     batch.delete(doc(db, 'conversations', conversation.id, 'members', uid));
     batch.delete(doc(db, 'users', uid, 'chats', conversation.id));
-    await batch.commit();
+    await runFirestoreWrite(() => batch.commit());
   } catch (error) {
     if (isQuotaExceededError(error)) {
       await deleteLocalUserChat(uid, conversation.id);

@@ -14,8 +14,15 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { db, handleFirestoreError, isQuotaExceededError, OperationType } from '../lib/firebase';
-import { cacheSet, subscribeLocalCacheKey } from '../lib/localFallbackStore';
+import {
+  db,
+  handleFirestoreError,
+  isQuotaExceededError,
+  isReadQuotaPaused,
+  markReadQuotaExceeded,
+  OperationType,
+} from '../lib/firebase';
+import { mergeServerCacheList, subscribeLocalCacheKey } from '../lib/localFallbackStore';
 import {
   resumeSpotlightAudioContext,
   startSpotlightTrack,
@@ -70,20 +77,29 @@ export function VideoFeed({
       return;
     }
 
-    let unsubLocal: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<Story[]>('stories', (cached) => {
+      if (cached) {
+        setFallbackStories(cached);
+        setLoading(false);
+      }
+    });
+    if (isReadQuotaPaused()) {
+      setLoading(false);
+      return () => unsubLocal();
+    }
+
     const unsubscribe = onSnapshot(
       query(collection(db, 'stories'), where('isPublicStory', '==', true), limit(30)),
       (snapshot) => {
         const list = snapshot.docs.map((item) => item.data() as Story);
-        setFallbackStories(list);
-        void cacheSet('stories', list);
-        setLoading(false);
+        void mergeServerCacheList<Story>('stories', list).then((merged) => {
+          setFallbackStories(merged);
+          setLoading(false);
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          unsubLocal = subscribeLocalCacheKey<Story[]>('stories', (cached) => {
-            if (cached) setFallbackStories(cached);
-          });
+          markReadQuotaExceeded();
           setLoading(false);
           return;
         }
@@ -93,25 +109,30 @@ export function VideoFeed({
     );
     return () => {
       unsubscribe();
-      unsubLocal?.();
+      unsubLocal();
     };
   }, [storiesProp]);
 
   useEffect(() => {
     if (spotlightProp !== undefined) return;
-    let unsubLocal: (() => void) | null = null;
+    const unsubLocal = subscribeLocalCacheKey<SpotlightVideo[]>('spotlightVideos', (cached) => {
+      if (cached) setFallbackSpotlight(cached);
+    });
+    if (isReadQuotaPaused()) {
+      return () => unsubLocal();
+    }
+
     const unsubscribe = onSnapshot(
       query(collection(db, 'spotlightVideos'), where('isPublic', '==', true), limit(20)),
       (snapshot) => {
         const list = snapshot.docs.map((item) => item.data() as SpotlightVideo);
-        setFallbackSpotlight(list);
-        void cacheSet('spotlightVideos', list);
+        void mergeServerCacheList<SpotlightVideo>('spotlightVideos', list).then((merged) => {
+          setFallbackSpotlight(merged);
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          unsubLocal = subscribeLocalCacheKey<SpotlightVideo[]>('spotlightVideos', (cached) => {
-            if (cached) setFallbackSpotlight(cached);
-          });
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, 'spotlightVideos');
@@ -119,7 +140,7 @@ export function VideoFeed({
     );
     return () => {
       unsubscribe();
-      unsubLocal?.();
+      unsubLocal();
     };
   }, [spotlightProp]);
 

@@ -35,11 +35,19 @@ import {
   formatMessageTime,
   timestampToDate,
 } from '../lib/dateFormat';
-import { db, handleFirestoreError, isQuotaExceededError, OperationType } from '../lib/firebase';
+import {
+  db,
+  handleFirestoreError,
+  isQuotaExceededError,
+  isReadQuotaPaused,
+  markReadQuotaExceeded,
+  OperationType,
+} from '../lib/firebase';
 import {
   bootstrapLocalSavedChat,
   cacheGet,
   cacheSet,
+  mergeServerCacheList,
   subscribeLocalCacheKey,
 } from '../lib/localFallbackStore';
 import { getStreakStatus } from '../lib/snapUtils';
@@ -175,9 +183,64 @@ export function ChatWindow({
       }
     };
 
-    let unsubLocalConv: (() => void) | null = null;
-    let unsubLocalMembers: (() => void) | null = null;
-    let unsubLocalMessages: (() => void) | null = null;
+    const unsubLocalConv = subscribeLocalCacheKey<Conversation>(
+      `conv_${conversationId}`,
+      (cached) => {
+        if (cached) {
+          latestConv = cached;
+          setConversation(cached);
+          syncParent();
+          setLoading(false);
+        }
+      }
+    );
+
+    const unsubLocalMembers = subscribeLocalCacheKey<ConversationMember[]>(
+      `members_${conversationId}`,
+      (cached) => {
+        if (cached) {
+          latestMembers = cached;
+          setMembers(cached);
+          syncParent();
+        }
+      }
+    );
+
+    const unsubLocalMessages = subscribeLocalCacheKey<Message[]>(
+      `messages_${conversationId}`,
+      (cached) => {
+        if (cached) {
+          const sorted = [...cached].sort((a, b) => {
+            const aMs = a.createdAt?.toMillis?.() ?? Date.now();
+            const bMs = b.createdAt?.toMillis?.() ?? Date.now();
+            return aMs - bMs;
+          });
+          latestMessages = sorted;
+          setMessages(sorted);
+          syncParent();
+        }
+      }
+    );
+
+    if (conversationId.startsWith('local_') || isReadQuotaPaused()) {
+      void (async () => {
+        if (conversationId === `saved_${currentUserRef.current.uid}`) {
+          await bootstrapLocalSavedChat(currentUserRef.current);
+        }
+        const cached = await cacheGet<Conversation>(`conv_${conversationId}`);
+        if (cached) {
+          latestConv = cached;
+          setConversation(cached);
+          syncParent();
+        }
+        setLoading(false);
+      })();
+      return () => {
+        unsubLocalConv();
+        unsubLocalMembers();
+        unsubLocalMessages();
+      };
+    }
 
     const unsubConv = onSnapshot(
       doc(db, 'conversations', conversationId),
@@ -194,6 +257,7 @@ export function ChatWindow({
       },
       (error) => {
         if (isQuotaExceededError(error)) {
+          markReadQuotaExceeded();
           void (async () => {
             if (conversationId === `saved_${currentUserRef.current.uid}`) {
               await bootstrapLocalSavedChat(currentUserRef.current);
@@ -206,14 +270,6 @@ export function ChatWindow({
             }
             setLoading(false);
           })();
-          unsubLocalConv = subscribeLocalCacheKey<Conversation>(`conv_${conversationId}`, (cached) => {
-            if (cached) {
-              latestConv = cached;
-              setConversation(cached);
-              syncParent();
-              setLoading(false);
-            }
-          });
           return;
         }
         handleFirestoreError(error, OperationType.GET, convPath);
@@ -234,16 +290,7 @@ export function ChatWindow({
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          unsubLocalMembers = subscribeLocalCacheKey<ConversationMember[]>(
-            `members_${conversationId}`,
-            (cached) => {
-              if (cached) {
-                latestMembers = cached;
-                setMembers(cached);
-                syncParent();
-              }
-            }
-          );
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, membersPath);
@@ -257,35 +304,21 @@ export function ChatWindow({
     const unsubMessages = onSnapshot(
       messagesQuery,
       (snap) => {
-        const list = snap.docs
-          .map((d) => d.data() as Message)
-          .sort((a, b) => {
+        const list = snap.docs.map((d) => d.data() as Message);
+        void mergeServerCacheList<Message>(`messages_${conversationId}`, list).then((merged) => {
+          merged.sort((a, b) => {
             const aMs = a.createdAt?.toMillis?.() ?? Date.now();
             const bMs = b.createdAt?.toMillis?.() ?? Date.now();
             return aMs - bMs;
           });
-        latestMessages = list;
-        setMessages(list);
-        void cacheSet(`messages_${conversationId}`, list);
-        syncParent();
+          latestMessages = merged;
+          setMessages(merged);
+          syncParent();
+        });
       },
       (error) => {
         if (isQuotaExceededError(error)) {
-          unsubLocalMessages = subscribeLocalCacheKey<Message[]>(
-            `messages_${conversationId}`,
-            (cached) => {
-              if (cached) {
-                const sorted = [...cached].sort((a, b) => {
-                  const aMs = a.createdAt?.toMillis?.() ?? Date.now();
-                  const bMs = b.createdAt?.toMillis?.() ?? Date.now();
-                  return aMs - bMs;
-                });
-                latestMessages = sorted;
-                setMessages(sorted);
-                syncParent();
-              }
-            }
-          );
+          markReadQuotaExceeded();
           return;
         }
         handleFirestoreError(error, OperationType.LIST, messagesPath);
@@ -296,9 +329,9 @@ export function ChatWindow({
       unsubConv();
       unsubMembers();
       unsubMessages();
-      unsubLocalConv?.();
-      unsubLocalMembers?.();
-      unsubLocalMessages?.();
+      unsubLocalConv();
+      unsubLocalMembers();
+      unsubLocalMessages();
     };
   }, [conversationId, currentUser.uid, onConversationLoaded]);
 
