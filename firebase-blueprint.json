@@ -1,0 +1,701 @@
+{
+  "entities": {
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Public non-PII user directory profile with Snap Score and Bitmoji-style avatar config.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "displayNameLower": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "handle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_.-]+$"
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "avatarSeed": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "statusText": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "snapScore": {
+          "type": "integer"
+        },
+        "isOnline": {
+          "type": "boolean"
+        },
+        "isDiscoverable": {
+          "type": "boolean"
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "displayNameLower",
+        "handle",
+        "photoURL",
+        "statusText",
+        "isOnline",
+        "isDiscoverable",
+        "lastSeenAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PrivateUserInfo": {
+      "title": "PrivateUserInfo",
+      "description": "Strictly isolated PII and private preferences belonging to a single user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "themeMode": {
+          "type": "string",
+          "enum": ["light", "dark"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "themeMode",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "Friendships and pending friend requests between two users.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userIds": {
+          "type": "array",
+          "description": "Exactly two participant UIDs sorted lexicographically"
+        },
+        "requesterId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "receiverId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "accepted", "declined"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userIds",
+        "requesterId",
+        "receiverId",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserChatIndex": {
+      "title": "UserChatIndex",
+      "description": "Per-user inbox summary with Snap status, streaks, unread counts, and preferences.",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["direct", "group"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "peerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "themeId": {
+          "type": "string",
+          "enum": ["azure", "emerald", "coral", "violet", "slate"]
+        },
+        "quickEmoji": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "lastMessageKind": {
+          "type": "string",
+          "enum": ["text", "image", "sticker", "snap", "voice", "system"]
+        },
+        "lastMediaType": {
+          "type": "string",
+          "enum": ["photo", "video", "audio", "text"]
+        },
+        "lastSnapStatus": {
+          "type": "string",
+          "enum": ["sent", "delivered", "opened", "replayed", "screenshotted"]
+        },
+        "lastSnapOpened": {
+          "type": "boolean"
+        },
+        "streakCount": {
+          "type": "integer"
+        },
+        "lastSnapAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastMessageText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "lastMessageSenderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastMessageSenderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastReadAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "unreadCount": {
+          "type": "integer"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "conversationId",
+        "userId",
+        "type",
+        "title",
+        "photoURL",
+        "peerUid",
+        "themeId",
+        "quickEmoji",
+        "lastMessageText",
+        "lastMessageSenderId",
+        "lastMessageSenderName",
+        "lastMessageAt",
+        "lastReadAt",
+        "unreadCount",
+        "pinned",
+        "muted",
+        "archived",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Authoritative conversation thread metadata for direct or group chats and Snaps.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["direct", "group"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "memberIds": {
+          "type": "array",
+          "description": "Bounded list of participant UIDs (max 20 members)"
+        },
+        "themeId": {
+          "type": "string",
+          "enum": ["azure", "emerald", "coral", "violet", "slate"]
+        },
+        "quickEmoji": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "lastMessageKind": {
+          "type": "string",
+          "enum": ["text", "image", "sticker", "snap", "voice", "system"]
+        },
+        "lastMediaType": {
+          "type": "string",
+          "enum": ["photo", "video", "audio", "text"]
+        },
+        "lastSnapStatus": {
+          "type": "string",
+          "enum": ["sent", "delivered", "opened", "replayed", "screenshotted"]
+        },
+        "streakCount": {
+          "type": "integer"
+        },
+        "lastSnapAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastMessageText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "lastMessageSenderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastMessageSenderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "title",
+        "createdBy",
+        "memberIds",
+        "themeId",
+        "quickEmoji",
+        "lastMessageText",
+        "lastMessageSenderId",
+        "lastMessageSenderName",
+        "lastMessageAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ConversationMember": {
+      "title": "ConversationMember",
+      "description": "Per-member state inside a conversation (role, typing status, read receipt).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "member"]
+        },
+        "memberIds": {
+          "type": "array",
+          "description": "Bounded participant UIDs matching parent conversation (max 20)"
+        },
+        "isTyping": {
+          "type": "boolean"
+        },
+        "typingAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastReadAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "conversationId",
+        "displayName",
+        "photoURL",
+        "role",
+        "memberIds",
+        "isTyping",
+        "typingAt",
+        "lastReadAt",
+        "joinedAt",
+        "updatedAt"
+      ]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "An individual message, voice note, or disappearing photo/video Snap inside a conversation.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "senderPhotoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "memberIds": {
+          "type": "array",
+          "description": "Bounded participant UIDs matching parent conversation (max 20)"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["text", "image", "sticker", "snap", "voice", "system"]
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": ["photo", "video", "audio", "text"]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "imageData": {
+          "type": "string",
+          "maxLength": 650000
+        },
+        "snapDurationSec": {
+          "type": "integer"
+        },
+        "snapStatus": {
+          "type": "string",
+          "enum": ["sent", "delivered", "opened", "replayed", "screenshotted"]
+        },
+        "snapViewedBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs who have opened this Snap (max 20)"
+        },
+        "snapReplayedBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs who replayed this Snap (max 20)"
+        },
+        "snapScreenshottedBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs who screenshotted this Snap (max 20)"
+        },
+        "savedBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs who saved this chat message (max 20)"
+        },
+        "replyToId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "replyToSenderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "replyToText": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "reactions": {
+          "type": "object"
+        },
+        "edited": {
+          "type": "boolean"
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "senderId",
+        "senderName",
+        "senderPhotoURL",
+        "memberIds",
+        "kind",
+        "text",
+        "imageData",
+        "replyToId",
+        "replyToSenderName",
+        "replyToText",
+        "reactions",
+        "edited",
+        "deleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "24-hour photo or video Story posted by a user for friends on CoolerUp Messages.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "authorHandle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "authorPhotoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": ["photo", "video"]
+        },
+        "imageData": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 650000
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "durationSec": {
+          "type": "integer"
+        },
+        "viewerIds": {
+          "type": "array",
+          "description": "Bounded list of UIDs who viewed this story (max 200)"
+        },
+        "isPublicStory": {
+          "type": "boolean"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "authorId",
+        "authorName",
+        "authorHandle",
+        "authorPhotoURL",
+        "imageData",
+        "caption",
+        "durationSec",
+        "viewerIds",
+        "isPublicStory",
+        "expiresAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/profiles/{profileId}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Public non-PII user profiles for discovering contacts on CoolerUp Messages."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/PrivateUserInfo" },
+      "description": "Private PII and user theme settings isolated to the owning user."
+    },
+    "/friendships/{friendshipId}": {
+      "schema": { "$ref": "#/entities/Friendship" },
+      "description": "Friendships and friend requests between users."
+    },
+    "/users/{userId}/chats/{conversationId}": {
+      "schema": { "$ref": "#/entities/UserChatIndex" },
+      "description": "User's private inbox list of conversations with Snap indicators, streaks, unread counts, and preferences."
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Authoritative conversation documents for 1-on-1 and group threads."
+    },
+    "/conversations/{conversationId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/ConversationMember" },
+      "description": "Member state subcollection tracking roles, typing indicators, and read receipts."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Messages, voice notes, and disappearing Snaps inside a conversation thread."
+    },
+    "/stories/{storyId}": {
+      "schema": { "$ref": "#/entities/Story" },
+      "description": "24-hour visual Stories shared by users."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "CoolerUp Messages",
+  "description": "Snapchat-style real-time messaging, disappearing photo Snaps, 24-hour Stories, streaks, camera filters, and group chats.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

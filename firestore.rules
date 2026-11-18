@@ -1,0 +1,612 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidThemeId(themeId) {
+      return themeId in ['azure', 'emerald', 'coral', 'violet', 'slate'];
+    }
+
+    function isValidMemberIdsList(ids) {
+      return ids is list
+        && ids.size() >= 1
+        && ids.size() <= 20
+        && ids[0] is string
+        && ids[0].size() >= 1
+        && ids[0].size() <= 128;
+    }
+
+    function isValidBoundedUidList(ids, maxLen) {
+      return ids is list
+        && ids.size() <= maxLen
+        && (ids.size() == 0 || (ids[0] is string && ids[0].size() >= 1 && ids[0].size() <= 128));
+    }
+
+    function isConversationMember(conversationId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/conversations/$(conversationId))
+        && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds;
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidPublicProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'displayNameLower', 'handle',
+          'photoURL', 'statusText', 'isOnline', 'isDiscoverable',
+          'lastSeenAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'displayNameLower', 'handle',
+          'photoURL', 'avatarSeed', 'statusText', 'snapScore', 'isOnline', 'isDiscoverable',
+          'lastSeenAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.displayNameLower is string && data.displayNameLower.size() >= 1 && data.displayNameLower.size() <= 80
+        && data.handle is string && data.handle.size() >= 2 && data.handle.size() <= 40 && data.handle.matches('^[a-z0-9_.-]+$')
+        && data.photoURL is string && data.photoURL.size() <= 1000
+        && (!('avatarSeed' in data) || (data.avatarSeed is string && data.avatarSeed.size() <= 120))
+        && data.statusText is string && data.statusText.size() <= 140
+        && (!('snapScore' in data) || (data.snapScore is int && data.snapScore >= 0 && data.snapScore <= 10000000))
+        && data.isOnline is bool
+        && data.isDiscoverable is bool
+        && data.lastSeenAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrivateUserInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'themeMode', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'themeMode', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 254
+        && data.themeMode in ['light', 'dark']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFriendship(data, friendshipId) {
+      return data.keys().hasAll(['id', 'userIds', 'requesterId', 'receiverId', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userIds', 'requesterId', 'receiverId', 'status', 'createdAt', 'updatedAt'])
+        && data.id == friendshipId
+        && data.userIds is list && data.userIds.size() == 2
+        && data.userIds[0] is string && data.userIds[0].size() >= 1 && data.userIds[0].size() <= 128
+        && data.userIds[1] is string && data.userIds[1].size() >= 1 && data.userIds[1].size() <= 128
+        && isValidId(data.requesterId)
+        && isValidId(data.receiverId)
+        && data.requesterId != data.receiverId
+        && data.requesterId in data.userIds
+        && data.receiverId in data.userIds
+        && data.status in ['pending', 'accepted', 'declined']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserChatIndex(data, userId, conversationId) {
+      return data.keys().hasAll([
+          'conversationId', 'userId', 'type', 'title', 'photoURL', 'peerUid',
+          'themeId', 'quickEmoji', 'lastMessageText', 'lastMessageSenderId',
+          'lastMessageSenderName', 'lastMessageAt', 'lastReadAt', 'unreadCount',
+          'pinned', 'muted', 'archived', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'conversationId', 'userId', 'type', 'title', 'photoURL', 'peerUid',
+          'themeId', 'quickEmoji', 'lastMessageKind', 'lastMediaType', 'lastSnapStatus',
+          'lastSnapOpened', 'streakCount', 'lastSnapAt',
+          'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
+          'lastMessageAt', 'lastReadAt', 'unreadCount',
+          'pinned', 'muted', 'archived', 'createdAt', 'updatedAt'
+        ])
+        && data.conversationId == conversationId
+        && data.userId == userId
+        && data.type in ['direct', 'group']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.photoURL is string && data.photoURL.size() <= 1000
+        && data.peerUid is string && data.peerUid.size() <= 128
+        && isValidThemeId(data.themeId)
+        && data.quickEmoji is string && data.quickEmoji.size() >= 1 && data.quickEmoji.size() <= 16
+        && (!('lastMessageKind' in data) || data.lastMessageKind in ['text', 'image', 'sticker', 'snap', 'voice', 'system'])
+        && (!('lastMediaType' in data) || data.lastMediaType in ['photo', 'video', 'audio', 'text'])
+        && (!('lastSnapStatus' in data) || data.lastSnapStatus in ['sent', 'delivered', 'opened', 'replayed', 'screenshotted'])
+        && (!('lastSnapOpened' in data) || data.lastSnapOpened is bool)
+        && (!('streakCount' in data) || (data.streakCount is int && data.streakCount >= 0 && data.streakCount <= 100000))
+        && (!('lastSnapAt' in data) || data.lastSnapAt is timestamp)
+        && data.lastMessageText is string && data.lastMessageText.size() <= 500
+        && data.lastMessageSenderId is string && data.lastMessageSenderId.size() <= 128
+        && data.lastMessageSenderName is string && data.lastMessageSenderName.size() <= 80
+        && data.lastMessageAt is timestamp
+        && data.lastReadAt is timestamp
+        && data.unreadCount is int && data.unreadCount >= 0 && data.unreadCount <= 100000
+        && data.pinned is bool
+        && data.muted is bool
+        && data.archived is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConversation(data, conversationId) {
+      return data.keys().hasAll([
+          'id', 'type', 'title', 'createdBy', 'memberIds', 'themeId', 'quickEmoji',
+          'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
+          'lastMessageAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'type', 'title', 'createdBy', 'memberIds', 'themeId', 'quickEmoji',
+          'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'streakCount', 'lastSnapAt',
+          'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
+          'lastMessageAt', 'createdAt', 'updatedAt'
+        ])
+        && data.id == conversationId
+        && data.type in ['direct', 'group']
+        && data.title is string && data.title.size() <= 100
+        && isValidId(data.createdBy)
+        && isValidMemberIdsList(data.memberIds)
+        && isValidThemeId(data.themeId)
+        && data.quickEmoji is string && data.quickEmoji.size() >= 1 && data.quickEmoji.size() <= 16
+        && (!('lastMessageKind' in data) || data.lastMessageKind in ['text', 'image', 'sticker', 'snap', 'voice', 'system'])
+        && (!('lastMediaType' in data) || data.lastMediaType in ['photo', 'video', 'audio', 'text'])
+        && (!('lastSnapStatus' in data) || data.lastSnapStatus in ['sent', 'delivered', 'opened', 'replayed', 'screenshotted'])
+        && (!('streakCount' in data) || (data.streakCount is int && data.streakCount >= 0 && data.streakCount <= 100000))
+        && (!('lastSnapAt' in data) || data.lastSnapAt is timestamp)
+        && data.lastMessageText is string && data.lastMessageText.size() <= 500
+        && data.lastMessageSenderId is string && data.lastMessageSenderId.size() <= 128
+        && data.lastMessageSenderName is string && data.lastMessageSenderName.size() <= 80
+        && data.lastMessageAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConversationMember(data, conversationId, memberId) {
+      return data.keys().hasAll([
+          'uid', 'conversationId', 'displayName', 'photoURL', 'role',
+          'memberIds', 'isTyping', 'typingAt', 'lastReadAt', 'joinedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'conversationId', 'displayName', 'photoURL', 'role',
+          'memberIds', 'isTyping', 'typingAt', 'lastReadAt', 'joinedAt', 'updatedAt'
+        ])
+        && data.uid == memberId
+        && isValidId(data.uid)
+        && data.conversationId == conversationId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.photoURL is string && data.photoURL.size() <= 1000
+        && data.role in ['admin', 'member']
+        && isValidMemberIdsList(data.memberIds)
+        && data.isTyping is bool
+        && data.typingAt is timestamp
+        && data.lastReadAt is timestamp
+        && data.joinedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMessage(data, conversationId, messageId) {
+      return data.keys().hasAll([
+          'id', 'conversationId', 'senderId', 'senderName', 'senderPhotoURL',
+          'memberIds', 'kind', 'text', 'imageData', 'replyToId', 'replyToSenderName',
+          'replyToText', 'reactions', 'edited', 'deleted', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'conversationId', 'senderId', 'senderName', 'senderPhotoURL',
+          'memberIds', 'kind', 'mediaType', 'text', 'imageData',
+          'snapDurationSec', 'snapStatus', 'snapViewedBy', 'snapReplayedBy', 'snapScreenshottedBy',
+          'savedBy', 'replyToId', 'replyToSenderName',
+          'replyToText', 'reactions', 'edited', 'deleted', 'createdAt', 'updatedAt'
+        ])
+        && data.id == messageId
+        && data.conversationId == conversationId
+        && isValidId(data.senderId)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80
+        && data.senderPhotoURL is string && data.senderPhotoURL.size() <= 1000
+        && isValidMemberIdsList(data.memberIds)
+        && data.kind in ['text', 'image', 'sticker', 'snap', 'voice', 'system']
+        && (!('mediaType' in data) || data.mediaType in ['photo', 'video', 'audio', 'text'])
+        && data.text is string && data.text.size() <= 2000
+        && data.imageData is string && data.imageData.size() <= 650000
+        && (!('snapDurationSec' in data) || (data.snapDurationSec is int && data.snapDurationSec >= 0 && data.snapDurationSec <= 120))
+        && (!('snapStatus' in data) || data.snapStatus in ['sent', 'delivered', 'opened', 'replayed', 'screenshotted'])
+        && (!('snapViewedBy' in data) || isValidBoundedUidList(data.snapViewedBy, 20))
+        && (!('snapReplayedBy' in data) || isValidBoundedUidList(data.snapReplayedBy, 20))
+        && (!('snapScreenshottedBy' in data) || isValidBoundedUidList(data.snapScreenshottedBy, 20))
+        && (!('savedBy' in data) || isValidBoundedUidList(data.savedBy, 20))
+        && data.replyToId is string && data.replyToId.size() <= 128
+        && data.replyToSenderName is string && data.replyToSenderName.size() <= 80
+        && data.replyToText is string && data.replyToText.size() <= 200
+        && data.reactions is map && data.reactions.size() <= 20
+        && data.edited is bool
+        && data.deleted is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStory(data, storyId) {
+      return data.keys().hasAll([
+          'id', 'authorId', 'authorName', 'authorHandle', 'authorPhotoURL',
+          'imageData', 'caption', 'durationSec', 'viewerIds', 'isPublicStory',
+          'expiresAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorId', 'authorName', 'authorHandle', 'authorPhotoURL',
+          'mediaType', 'imageData', 'caption', 'durationSec', 'viewerIds', 'isPublicStory',
+          'expiresAt', 'createdAt', 'updatedAt'
+        ])
+        && data.id == storyId
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.authorHandle is string && data.authorHandle.size() >= 2 && data.authorHandle.size() <= 40
+        && data.authorPhotoURL is string && data.authorPhotoURL.size() <= 1000
+        && (!('mediaType' in data) || data.mediaType in ['photo', 'video'])
+        && data.imageData is string && data.imageData.size() >= 1 && data.imageData.size() <= 650000
+        && data.caption is string && data.caption.size() <= 200
+        && data.durationSec is int && data.durationSec >= 1 && data.durationSec <= 30
+        && isValidBoundedUidList(data.viewerIds, 200)
+        && data.isPublicStory is bool
+        && data.expiresAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- 1. Public Profiles Directory ---
+    match /profiles/{profileId} {
+      allow get: if isSignedIn() && isValidId(profileId);
+      allow list: if isSignedIn() && (resource.data.isDiscoverable == true || resource.data.uid == request.auth.uid);
+
+      allow create: if isVerifiedUser()
+        && isValidId(profileId)
+        && profileId == request.auth.uid
+        && isValidPublicProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().lastSeenAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(profileId)
+        && isOwner(profileId)
+        && isValidPublicProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'displayNameLower', 'handle', 'photoURL', 'avatarSeed',
+          'statusText', 'snapScore', 'isOnline', 'isDiscoverable', 'lastSeenAt', 'updatedAt'
+        ]);
+    }
+
+    // --- 2. Private User Info (PII Isolation) ---
+    match /users/{userId}/private/{docId} {
+      allow get: if isSignedIn() && isValidId(userId) && docId == 'info' && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && docId == 'info'
+        && isOwner(userId)
+        && isValidPrivateUserInfo(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && docId == 'info'
+        && isOwner(userId)
+        && isValidPrivateUserInfo(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'themeMode', 'updatedAt']);
+    }
+
+    // --- 3. Friendships & Requests ---
+    match /friendships/{friendshipId} {
+      allow get: if isSignedIn() && isValidId(friendshipId) && (resource == null || request.auth.uid in existing().userIds);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.userIds;
+
+      allow create: if isVerifiedUser()
+        && isValidId(friendshipId)
+        && isValidFriendship(incoming(), friendshipId)
+        && incoming().requesterId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(friendshipId)
+        && request.auth.uid in existing().userIds
+        && isValidFriendship(incoming(), friendshipId)
+        && incoming().id == existing().id
+        && incoming().userIds == existing().userIds
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().receiverId == request.auth.uid
+            && incoming().status in ['accepted', 'declined']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+          ||
+          (request.auth.uid in existing().userIds
+            && incoming().requesterId == request.auth.uid
+            && incoming().status == 'pending'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['requesterId', 'receiverId', 'status', 'updatedAt']))
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(friendshipId)
+        && request.auth.uid in existing().userIds;
+    }
+
+    // --- 4. User Chat Inbox Index ---
+    match /users/{userId}/chats/{conversationId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(conversationId) && isOwner(userId);
+      allow list: if isSignedIn() && isValidId(userId) && isOwner(userId);
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(conversationId)
+        && isValidUserChatIndex(incoming(), userId, conversationId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isOwner(userId)
+          || (
+            existsAfter(/databases/$(database)/documents/conversations/$(conversationId)/members/$(request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/conversations/$(conversationId)/members/$(userId))
+          )
+        );
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(conversationId)
+        && isValidUserChatIndex(incoming(), userId, conversationId)
+        && incoming().conversationId == existing().conversationId
+        && incoming().userId == existing().userId
+        && incoming().type == existing().type
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'photoURL', 'themeId', 'quickEmoji',
+            'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'lastSnapOpened', 'streakCount', 'lastSnapAt',
+            'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
+            'lastMessageAt', 'lastReadAt', 'unreadCount',
+            'pinned', 'muted', 'archived', 'updatedAt'
+          ]))
+          ||
+          (isConversationMember(conversationId)
+            && (incoming().lastMessageSenderId == existing().lastMessageSenderId || incoming().lastMessageSenderId == request.auth.uid)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'themeId', 'quickEmoji',
+              'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'lastSnapOpened', 'streakCount', 'lastSnapAt',
+              'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
+              'lastMessageAt', 'unreadCount', 'archived', 'updatedAt'
+            ]))
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidId(conversationId)
+        && isOwner(userId);
+    }
+
+    // --- 5. Conversations ---
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn()
+        && isValidId(conversationId)
+        && (resource == null || request.auth.uid in existing().memberIds);
+
+      allow list: if isSignedIn()
+        && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidConversation(incoming(), conversationId)
+        && incoming().createdBy == request.auth.uid
+        && request.auth.uid in incoming().memberIds
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(conversationId)
+        && request.auth.uid in existing().memberIds
+        && isValidConversation(incoming(), conversationId)
+        && incoming().id == existing().id
+        && incoming().type == existing().type
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Send / Edit / Unsend Message or Snap summary update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'lastMessageKind', 'lastMediaType', 'lastSnapStatus', 'streakCount', 'lastSnapAt',
+            'lastMessageText', 'lastMessageSenderId', 'lastMessageSenderName',
+            'lastMessageAt', 'updatedAt'
+          ])
+          ||
+          // Action 2: Customize theme or quick emoji
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'themeId', 'quickEmoji', 'updatedAt'
+          ])
+          ||
+          // Action 3: Group title or membership update (group only)
+          (existing().type == 'group'
+            && request.auth.uid in incoming().memberIds
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'memberIds', 'updatedAt'
+            ]))
+        );
+    }
+
+    // --- 6. Conversation Members Subcollection ---
+    match /conversations/{conversationId}/members/{memberId} {
+      allow get: if isSignedIn()
+        && isValidId(conversationId)
+        && isValidId(memberId)
+        && (request.auth.uid in existing().memberIds || isConversationMember(conversationId));
+
+      allow list: if isSignedIn()
+        && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidId(memberId)
+        && isValidConversationMember(incoming(), conversationId, memberId)
+        && existsAfter(/databases/$(database)/documents/conversations/$(conversationId))
+        && request.auth.uid in incoming().memberIds
+        && memberId in incoming().memberIds
+        && incoming().joinedAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidId(memberId)
+        && isConversationMember(conversationId)
+        && isValidConversationMember(incoming(), conversationId, memberId)
+        && incoming().uid == existing().uid
+        && incoming().conversationId == existing().conversationId
+        && incoming().joinedAt == existing().joinedAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Member updates own typing status, read receipt, or profile snapshot
+          (memberId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'photoURL', 'isTyping', 'typingAt', 'lastReadAt', 'updatedAt'
+          ]))
+          ||
+          // Action 2: Group member list synced across existing member docs
+          (incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt']))
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidId(memberId)
+        && memberId == request.auth.uid
+        && isConversationMember(conversationId);
+    }
+
+    // --- 7. Messages & Disappearing Snaps Subcollection ---
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow get: if isSignedIn()
+        && isValidId(conversationId)
+        && isValidId(messageId)
+        && isConversationMember(conversationId);
+
+      allow list: if isSignedIn()
+        && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidId(messageId)
+        && isValidMessage(incoming(), conversationId, messageId)
+        && incoming().senderId == request.auth.uid
+        && incoming().edited == false
+        && incoming().deleted == false
+        && incoming().reactions.size() == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/conversations/$(conversationId))
+        && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds
+        && incoming().memberIds == get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds;
+
+      allow update: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidId(messageId)
+        && isConversationMember(conversationId)
+        && isValidMessage(incoming(), conversationId, messageId)
+        && incoming().id == existing().id
+        && incoming().conversationId == existing().conversationId
+        && incoming().senderId == existing().senderId
+        && incoming().kind == existing().kind
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Sender edits text
+          (existing().senderId == request.auth.uid
+            && existing().deleted == false
+            && incoming().edited == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'edited', 'updatedAt']))
+          ||
+          // Action 2: Sender unsends (soft delete) message or Snap
+          (existing().senderId == request.auth.uid
+            && incoming().deleted == true
+            && incoming().text == ''
+            && incoming().imageData == ''
+            && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'imageData', 'deleted', 'updatedAt']))
+          ||
+          // Action 3: Any conversation member toggles only their own reaction key
+          (incoming().diff(existing()).affectedKeys().hasOnly(['reactions', 'updatedAt'])
+            && incoming().reactions.diff(existing().reactions).affectedKeys().hasOnly([request.auth.uid])
+            && (!(request.auth.uid in incoming().reactions)
+              || (incoming().reactions[request.auth.uid] is string
+                && incoming().reactions[request.auth.uid].size() >= 1
+                && incoming().reactions[request.auth.uid].size() <= 16)))
+          ||
+          // Action 4: Member opens, replays, screenshots, or expires a disappearing Snap (deletes media when closed!)
+          (existing().kind == 'snap'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'snapStatus', 'snapViewedBy', 'snapReplayedBy', 'snapScreenshottedBy', 'imageData', 'updatedAt'
+            ])
+            && (incoming().imageData == existing().imageData || incoming().imageData == '')
+            && (!('snapViewedBy' in existing()) || incoming().snapViewedBy.hasAll(existing().snapViewedBy)))
+          ||
+          // Action 5: Member toggles saving a message in chat
+          (incoming().diff(existing()).affectedKeys().hasOnly(['savedBy', 'updatedAt']))
+        );
+    }
+
+    // --- 8. 24-Hour Stories ---
+    match /stories/{storyId} {
+      allow get: if isSignedIn() && isValidId(storyId);
+      allow list: if isSignedIn() && (resource.data.isPublicStory == true || resource.data.authorId == request.auth.uid);
+
+      allow create: if isVerifiedUser()
+        && isValidId(storyId)
+        && isValidStory(incoming(), storyId)
+        && incoming().authorId == request.auth.uid
+        && incoming().viewerIds.size() == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(storyId)
+        && isValidStory(incoming(), storyId)
+        && incoming().id == existing().id
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['viewerIds', 'updatedAt'])
+        && request.auth.uid in incoming().viewerIds
+        && incoming().viewerIds.hasAll(existing().viewerIds);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(storyId)
+        && existing().authorId == request.auth.uid;
+    }
+  }
+}
