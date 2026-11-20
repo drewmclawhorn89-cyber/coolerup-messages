@@ -101,16 +101,16 @@ export function ChatDetailsDrawer({
   };
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-40 w-[310px] xl:static xl:w-[300px] shrink-0 bg-white dark:bg-[#121824] border-l border-slate-200 dark:border-slate-800/80 flex flex-col h-full shadow-xl xl:shadow-none">
-      <div className="h-16 px-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-        <span className="font-display text-sm font-bold text-slate-900 dark:text-white">
+    <aside className="fixed inset-y-0 right-0 z-40 w-[310px] xl:static xl:w-[300px] shrink-0 bg-white dark:bg-[#141414] border-l border-slate-100 dark:border-white/10/80 flex flex-col h-full shadow-xl xl:shadow-none">
+      <div className="h-16 px-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between shrink-0">
+        <span className="font-display text-[15px] font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
           Conversation Info
         </span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+          className="w-9 h-9 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
@@ -141,19 +141,19 @@ export function ChatDetailsDrawer({
                   if (e.key === 'Escape') setEditingTitle(false);
                 }}
                 autoFocus
-                className="flex-1 h-9 px-3 rounded-lg bg-[#F4F6F9] dark:bg-[#0B0F17] border border-[#0066FF] text-sm text-slate-900 dark:text-white outline-none"
+                className="flex-1 h-9 px-3 rounded-xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-[#0066FF] text-sm text-slate-900 dark:text-white outline-none"
               />
               <button
                 type="button"
                 onClick={handleSaveTitle}
-                className="w-9 h-9 rounded-lg bg-[#0066FF] text-white flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-[#0066FF] text-white flex items-center justify-center cursor-pointer"
               >
                 <Check className="w-4 h-4" />
               </button>
             </div>
           ) : (
             <div className="mt-3 flex items-center gap-1.5 max-w-full">
-              <h3 className="font-display text-base font-bold text-slate-900 dark:text-white truncate">
+              <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white truncate">
                 {displayTitle}
               </h3>
               {conversation.type === 'group' && (
@@ -164,7 +164,7 @@ export function ChatDetailsDrawer({
                     setEditingTitle(true);
                   }}
                   aria-label="Rename group"
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer shrink-0"
+                  className="w-7 h-7 rounded-xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer shrink-0"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -189,10 +189,10 @@ export function ChatDetailsDrawer({
             <button
               type="button"
               onClick={() => onUpdateFlags({ pinned: !chatIndex.pinned })}
-              className={`py-2.5 px-2 rounded-xl border text-xs font-medium flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`py-2.5 px-2 rounded-2xl border text-xs font-medium flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
                 chatIndex.pinned
                   ? 'border-[#0066FF] bg-[#0066FF]/10 text-[#0066FF] dark:text-[#60A5FA]'
-                  : 'border-slate-200 dark:border-slate-800 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                  : 'border-slate-100 dark:border-white/10 hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 text-slate-700 dark:text-slate-300'
               }`}
             >
               {chatIndex.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
@@ -202,10 +202,10 @@ export function ChatDetailsDrawer({
             <button
               type="button"
               onClick={() => onUpdateFlags({ muted: !chatIndex.muted })}
-              className={`py-2.5 px-2 rounded-xl border text-xs font-medium flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`py-2.5 px-2 rounded-2xl border text-xs font-medium flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
                 chatIndex.muted
                   ? 'border-[#0066FF] bg-[#0066FF]/10 text-[#0066FF] dark:text-[#60A5FA]'
-                  : 'border-slate-200 dark:border-slate-800 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                  : 'border-slate-100 dark:border-white/10 hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 text-slate-700 dark:text-slate-300'
               }`}
             >
               {chatIndex.muted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
@@ -215,7 +215,7 @@ export function ChatDetailsDrawer({
             <button
               type="button"
               onClick={() => onUpdateFlags({ archived: !chatIndex.archived })}
-              className="py-2.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 text-xs font-medium flex flex-col items-center gap-1.5 transition-colors cursor-pointer"
+              className="py-2.5 px-2 rounded-2xl border border-slate-100 dark:border-white/10 hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 text-slate-700 dark:text-slate-300 text-xs font-medium flex flex-col items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Archive className="w-4 h-4" />
               <span>{chatIndex.archived ? 'Unarchive' : 'Archive'}</span>
@@ -241,7 +241,7 @@ export function ChatDetailsDrawer({
                   onClick={() => onUpdateAppearance({ themeId: id })}
                   style={{ backgroundColor: theme.swatchHex }}
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-white transition-transform cursor-pointer ${
-                    isSelected ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#121824] ring-slate-900 dark:ring-white scale-105' : 'hover:scale-105'
+                    isSelected ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#141414] ring-slate-900 dark:ring-white scale-105' : 'hover:scale-105'
                   }`}
                 >
                   {isSelected && <Check className="w-4 h-4" />}
@@ -264,10 +264,10 @@ export function ChatDetailsDrawer({
                   key={emoji}
                   type="button"
                   onClick={() => onUpdateAppearance({ quickEmoji: emoji })}
-                  className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-colors cursor-pointer ${
+                  className={`w-9 h-9 rounded-2xl text-lg flex items-center justify-center transition-colors cursor-pointer ${
                     isSelected
                       ? 'bg-[#0066FF]/15 ring-1 ring-[#0066FF]'
-                      : 'bg-[#F4F6F9] dark:bg-[#0B0F17] hover:bg-slate-200 dark:hover:bg-slate-800'
+                      : 'bg-[#F2F2F2] dark:bg-[#0A0A0A] hover:bg-slate-200 dark:hover:bg-white/5'
                   }`}
                 >
                   {emoji}
@@ -297,7 +297,7 @@ export function ChatDetailsDrawer({
             </div>
 
             {showAddMember && (
-              <div className="mb-3 p-2 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800 max-h-40 overflow-y-auto chat-scroll space-y-1">
+              <div className="mb-3 p-2 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-100 dark:border-white/10 max-h-40 overflow-y-auto chat-scroll space-y-1">
                 {addableProfiles.map((p) => (
                   <button
                     key={p.uid}
@@ -306,7 +306,7 @@ export function ChatDetailsDrawer({
                       await onAddMember(p);
                       setShowAddMember(false);
                     }}
-                    className="w-full px-2 py-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 flex items-center gap-2 text-left text-xs cursor-pointer"
+                    className="w-full px-2 py-1.5 rounded-xl hover:bg-white dark:hover:bg-white/5 flex items-center gap-2 text-left text-xs cursor-pointer"
                   >
                     <Avatar name={p.displayName} photoURL={p.photoURL} avatarSeed={p.avatarSeed} size="xs" />
                     <span className="truncate font-medium text-slate-800 dark:text-slate-200">
@@ -353,7 +353,7 @@ export function ChatDetailsDrawer({
                 <button
                   type="button"
                   onClick={() => setConfirmLeave(true)}
-                  className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="w-full h-9 rounded-2xl border border-slate-100 dark:border-white/10 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Leave Group</span>
@@ -363,14 +363,14 @@ export function ChatDetailsDrawer({
                   <button
                     type="button"
                     onClick={() => setConfirmLeave(false)}
-                    className="flex-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer"
+                    className="flex-1 h-9 rounded-2xl border border-slate-100 dark:border-white/10 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={onLeaveGroup}
-                    className="flex-1 h-9 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
+                    className="flex-1 h-9 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
                   >
                     Confirm Leave
                   </button>
@@ -397,7 +397,7 @@ export function ChatDetailsDrawer({
                   key={msg.id}
                   type="button"
                   onClick={() => onOpenImageLightbox(msg.imageData)}
-                  className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 hover:opacity-90 transition-opacity cursor-pointer"
+                  className="aspect-square rounded-xl overflow-hidden bg-[#F2F2F2] dark:bg-white/10 hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   <img
                     src={msg.imageData}
@@ -413,12 +413,12 @@ export function ChatDetailsDrawer({
 
         {/* Delete Chat */}
         {!isSaved && (
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-2 border-t border-slate-100 dark:border-white/10">
             {!confirmDeleteChat ? (
               <button
                 type="button"
                 onClick={() => setConfirmDeleteChat(true)}
-                className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full h-9 rounded-2xl border border-slate-100 dark:border-white/10 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Chat</span>
@@ -428,14 +428,14 @@ export function ChatDetailsDrawer({
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteChat(false)}
-                  className="flex-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer"
+                  className="flex-1 h-9 rounded-2xl border border-slate-100 dark:border-white/10 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={onDeleteChat}
-                  className="flex-1 h-9 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
+                  className="flex-1 h-9 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
                 >
                   Delete
                 </button>

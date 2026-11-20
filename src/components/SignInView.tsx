@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { ArrowRight, Check, Eye, EyeOff, Lock, Mail, Moon, Sun, User } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
+import { GhostLogo } from './GhostLogo';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface SignInViewProps {
@@ -104,67 +105,78 @@ export function SignInView({ darkMode, onToggleTheme }: SignInViewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFC00]/20 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#FFFC00] text-black flex flex-col relative overflow-hidden">
+      {/* Oversized ghost watermark, Snapchat-marketing style */}
+      <GhostLogo className="pointer-events-none absolute -right-24 -bottom-24 w-[520px] h-[520px] text-black/[0.055]" />
+      <GhostLogo className="pointer-events-none absolute -left-32 top-24 w-[360px] h-[360px] text-black/[0.04]" />
+
       {/* Top Bar */}
-      <header className="w-full max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-8">
-        <div className="flex items-center gap-3 shrink-0">
-          {!emblemFailed ? (
-            <img
-              src="/src/assets/images/coolerup_emblem_1794968388923.jpg"
-              alt="CoolerUp Messages emblem"
-              referrerPolicy="no-referrer"
-              onError={() => setEmblemFailed(true)}
-              className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-800 bg-[#FFFC00]"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-[#FFFC00] text-slate-950 font-display font-bold flex items-center justify-center text-sm shadow-xs">
-              👻
-            </div>
-          )}
-          <span className="font-display text-lg font-bold tracking-tight whitespace-nowrap">
-            CoolerUp Messages
+      <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <GhostLogo className="w-9 h-9 text-black" />
+          <span className="font-display text-[22px] font-extrabold tracking-[-0.05em] whitespace-nowrap">
+            CoolerUp
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#121824] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer shrink-0"
-        >
-          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          <span>{darkMode ? 'Light' : 'Dark'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <PWAInstallButton variant="cta" />
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="h-9 px-3.5 rounded-full bg-black/10 hover:bg-black/15 text-black transition-colors flex items-center gap-1.5 text-xs font-bold cursor-pointer shrink-0"
+          >
+            {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            <span>{darkMode ? 'Light' : 'Dark'}</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Split Hero */}
-      <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-6 lg:py-10 flex items-center">
-        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
-          {/* Left Sign-In Column */}
+      <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-6 pb-10 flex items-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+          {/* Left: big Snapchat-style statement */}
           <div className="lg:col-span-6 flex flex-col justify-center">
-            <span className="inline-flex w-fit items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFFC00] text-slate-950 text-xs font-bold mb-3">
-              👻 Snaps · Stories · Map · Spotlight
+            <span className="inline-flex w-fit items-center gap-1.5 px-3 py-1 rounded-full bg-black text-[#FFFC00] text-[11px] font-extrabold uppercase tracking-[0.14em] mb-5">
+              Snaps · Stories · Map · Spotlight
             </span>
-            <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-[1.08] text-balance mb-4">
-              Snap fast. Chat live. Explore the Map.
+            <h1 className="font-display text-[46px] sm:text-[62px] leading-[0.94] font-extrabold tracking-[-0.055em] text-black mb-5">
+              Snap.
+              <br />
+              Chat.
+              <br />
+              Share the moment.
             </h1>
-            <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed max-w-lg mb-6">
-              Full-screen camera with live lenses &amp; 60s video, disappearing Snaps, 24-hour Stories, Spotlight vertical feed, Snap Map, and PIN-locked Memories synced to your account.
+            <p className="text-[15px] font-medium text-black/70 leading-relaxed max-w-md mb-7">
+              A full-screen camera with lenses, disappearing Snaps, 24-hour Stories, Spotlight,
+              Snap Map and PIN-locked Memories — all synced to your account.
             </p>
 
-            {/* Auth Card */}
-            <div className="rounded-3xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm max-w-md">
-              <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1 mb-4">
+            <div className="flex flex-wrap gap-2.5">
+              {['Disappearing Snaps', 'Snapstreaks', 'Bitmoji avatars', 'My Eyes Only'].map((tag) => (
+                <span
+                  key={tag}
+                  className="px-3.5 py-1.5 rounded-full bg-black/10 text-black text-xs font-bold"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: auth card */}
+          <div className="lg:col-span-6 flex justify-center lg:justify-end">
+            <div className="w-full max-w-[420px] rounded-[28px] bg-white p-6 sm:p-7 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.35)]">
+              <div className="flex rounded-full bg-[#F2F2F2] p-1 mb-5">
                 <button
                   type="button"
                   onClick={() => {
                     setAuthMode('signin');
                     setErrorMsg('');
                   }}
-                  className={`flex-1 h-9 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    authMode === 'signin'
-                      ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300'
+                  className={`flex-1 h-9 rounded-full text-[13px] font-extrabold transition-colors cursor-pointer ${
+                    authMode === 'signin' ? 'bg-black text-white' : 'text-slate-500'
                   }`}
                 >
                   Log In
@@ -175,81 +187,88 @@ export function SignInView({ darkMode, onToggleTheme }: SignInViewProps) {
                     setAuthMode('signup');
                     setErrorMsg('');
                   }}
-                  className={`flex-1 h-9 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    authMode === 'signup'
-                      ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300'
+                  className={`flex-1 h-9 rounded-full text-[13px] font-extrabold transition-colors cursor-pointer ${
+                    authMode === 'signup' ? 'bg-black text-white' : 'text-slate-500'
                   }`}
                 >
                   Sign Up
                 </button>
               </div>
 
+              <h2 className="font-display text-[26px] leading-none font-extrabold tracking-[-0.045em] text-slate-900 mb-1">
+                {authMode === 'signup' ? 'Create your account' : 'Welcome back'}
+              </h2>
+              <p className="text-[13px] font-medium text-slate-500 mb-5">
+                {authMode === 'signup'
+                  ? 'Pick a name, then start snapping.'
+                  : 'Log in to pick up where you left off.'}
+              </p>
+
               {errorMsg && (
-                <div className="mb-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-xs text-rose-700 dark:text-rose-300">
+                <div className="mb-3 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
                   {errorMsg}
                 </div>
               )}
 
               {infoMsg && (
-                <div className="mb-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-xs text-emerald-700 dark:text-emerald-300">
+                <div className="mb-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-700">
                   {infoMsg}
                 </div>
               )}
 
-              <form onSubmit={handleEmailSubmit} className="space-y-3">
+              <form onSubmit={handleEmailSubmit} className="space-y-2.5">
                 {authMode === 'signup' && (
                   <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="Display name"
                       maxLength={60}
-                      className="w-full h-11 pl-10 pr-3 rounded-xl bg-slate-100 dark:bg-slate-800/70 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FFFC00]"
+                      className="w-full h-12 pl-11 pr-4 rounded-2xl bg-[#F2F2F2] text-[14px] font-medium text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-[#FFFC00] focus:bg-white transition-colors"
                     />
                   </div>
                 )}
 
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Email address"
                     required
-                    className="w-full h-11 pl-10 pr-3 rounded-xl bg-slate-100 dark:bg-slate-800/70 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FFFC00]"
+                    className="w-full h-12 pl-11 pr-4 rounded-2xl bg-[#F2F2F2] text-[14px] font-medium text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-[#FFFC00] focus:bg-white transition-colors"
                   />
                 </div>
 
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Password (6+ characters)"
                     required
-                    className="w-full h-11 pl-10 pr-10 rounded-xl bg-slate-100 dark:bg-slate-800/70 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FFFC00]"
+                    className="w-full h-12 pl-11 pr-11 rounded-2xl bg-[#F2F2F2] text-[14px] font-medium text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-[#FFFC00] focus:bg-white transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
 
                 {authMode === 'signin' && (
-                  <div className="flex justify-end">
+                  <div className="flex justify-end pt-0.5">
                     <button
                       type="button"
                       onClick={handleResetPassword}
-                      className="text-xs font-medium text-[#00A6FF] hover:underline cursor-pointer"
+                      className="text-[12px] font-bold text-[#0E8CFF] hover:underline cursor-pointer"
                     >
                       Forgot password?
                     </button>
@@ -259,78 +278,52 @@ export function SignInView({ darkMode, onToggleTheme }: SignInViewProps) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-11 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] disabled:opacity-60 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  className="w-full h-12 rounded-full bg-[#0E8CFF] hover:bg-[#0B7DE6] disabled:opacity-60 text-white font-extrabold text-[14px] flex items-center justify-center gap-2 snap-press cursor-pointer"
                 >
                   <span>
                     {loading
                       ? 'Please wait...'
                       : authMode === 'signup'
                       ? 'Create Account'
-                      : 'Sign In with Email'}
+                      : 'Log In'}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
 
-              <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+              <div className="my-4 flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="h-px flex-1 bg-slate-200" />
                 <span>or</span>
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                <div className="h-px flex-1 bg-slate-200" />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="flex-1 h-11 px-4 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-60 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-                >
-                  <span>Continue with Google</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <PWAInstallButton variant="cta" />
-              </div>
-            </div>
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                className="w-full h-12 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F2EF00] disabled:opacity-60 text-black font-extrabold text-[14px] flex items-center justify-center gap-2 snap-press cursor-pointer whitespace-nowrap"
+              >
+                <span>Continue with Google</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
 
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-[#00A6FF]" /> Cloud Firestore &amp; Storage Sync
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-[#00A6FF]" /> Works on Phone &amp; Desktop
-              </span>
-            </div>
-          </div>
-
-          {/* Right Studio Visual Column */}
-          <div className="lg:col-span-6 flex">
-            <div className="w-full rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#121824] flex flex-col">
-              <div className="relative flex-1 min-h-[280px] lg:min-h-[420px] bg-slate-100 dark:bg-slate-900">
-                {!heroFailed ? (
-                  <img
-                    src="/src/assets/images/coolerup_signin_hero_1794968389986.jpg"
-                    alt="CoolerUp Messages layered conversation glass composition"
-                    referrerPolicy="no-referrer"
-                    onError={() => setHeroFailed(true)}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-[#FFFC00]/30 via-slate-100 to-slate-200 dark:from-[#FFFC00]/20 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center p-8">
-                    <span className="font-display text-2xl font-bold text-slate-800 dark:text-slate-200">
-                      CoolerUp Messages
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>Camera · Map · Chat · Stories · Spotlight</span>
-                <span>·</span>
-                <span>Cloud Account Sync</span>
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] font-semibold text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-[#0E8CFF]" /> Cloud sync
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-[#0E8CFF]" /> Phone & desktop
+                </span>
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      <footer className="relative z-10 w-full max-w-6xl mx-auto px-6 pb-6 text-[11px] font-bold text-black/50 flex flex-wrap items-center justify-between gap-2">
+        <span>Camera · Map · Chat · Stories · Spotlight</span>
+        <span>Made for moments that disappear</span>
+      </footer>
     </div>
   );
 }

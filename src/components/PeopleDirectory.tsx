@@ -166,10 +166,10 @@ export function PeopleDirectory({
   };
 
   return (
-    <section className="flex flex-col h-full w-full md:w-[336px] lg:w-[356px] shrink-0 bg-white dark:bg-[#121824] border-r border-slate-200 dark:border-slate-800/80">
+    <section className="flex flex-col h-full w-full md:w-[360px] lg:w-[380px] shrink-0 bg-white dark:bg-[#0F0F0F] border-r border-slate-100 dark:border-white/10">
       <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-2 shrink-0">
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="font-display text-[28px] leading-none font-extrabold tracking-[-0.05em] text-slate-900 dark:text-white">
             Add Friends
           </h1>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono-tabular">
@@ -181,10 +181,10 @@ export function PeopleDirectory({
             type="button"
             onClick={() => setShowMySnapcode((v) => !v)}
             title="My QR Snapcode"
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-9 h-9 rounded-2xl flex items-center justify-center transition-colors cursor-pointer ${
               showMySnapcode
                 ? 'bg-[#FFFC00] text-slate-950'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+                : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-700 dark:text-slate-200'
             }`}
           >
             <QrCode className="w-4 h-4" />
@@ -192,7 +192,7 @@ export function PeopleDirectory({
           <button
             type="button"
             onClick={onOpenNewGroup}
-            className="h-9 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            className="h-9 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/10 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>Group</span>
@@ -213,12 +213,12 @@ export function PeopleDirectory({
                 if (e.key === 'Enter') void handleAddFromSnapcode();
               }}
               placeholder="Paste Snapcode link or @username..."
-              className="flex-1 h-9 px-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] text-xs text-slate-900 dark:text-slate-100 outline-none border border-slate-200/80 dark:border-slate-800 focus:border-[#00A6FF]"
+              className="flex-1 h-9 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] text-xs text-slate-900 dark:text-slate-100 outline-none border border-slate-200/80 dark:border-white/10 focus:border-[#0E8CFF]"
             />
             <button
               type="button"
               onClick={handleAddFromSnapcode}
-              className="h-9 px-3 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold cursor-pointer shrink-0"
+              className="h-9 px-3 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold cursor-pointer shrink-0"
             >
               Add
             </button>
@@ -231,15 +231,15 @@ export function PeopleDirectory({
         <button
           type="button"
           onClick={handleFindFromContacts}
-          className="flex-1 h-9 px-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] hover:bg-slate-200/70 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          className="flex-1 h-9 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] hover:bg-slate-200/70 dark:hover:bg-white/5 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
-          <Contact className="w-3.5 h-3.5 text-[#00A6FF]" />
+          <Contact className="w-3.5 h-3.5 text-[#0E8CFF]" />
           <span>From Contacts</span>
         </button>
         <button
           type="button"
           onClick={handleCopyInvite}
-          className="flex-1 h-9 px-3 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          className="flex-1 h-9 px-3 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
           <span>{copied ? 'Link Copied' : 'Share Link'}</span>
@@ -261,7 +261,7 @@ export function PeopleDirectory({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find friends by name or @username..."
-            className="w-full h-10 pl-9 pr-8 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-transparent focus:border-[#00A6FF]/40 focus:bg-white dark:focus:bg-[#0D131F] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors"
+            className="w-full h-10 pl-9 pr-8 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-transparent focus:border-[#0E8CFF]/40 focus:bg-white dark:focus:bg-[#101010] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors"
           />
           {query && (
             <button
@@ -282,7 +282,7 @@ export function PeopleDirectory({
         <button
           type="button"
           onClick={() => onStartDirectChat(currentUser)}
-          className="w-full min-h-[60px] px-3 py-2 rounded-2xl flex items-center justify-between gap-3 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50 transition-colors text-left cursor-pointer"
+          className="w-full min-h-[60px] px-3 py-2 rounded-2xl flex items-center justify-between gap-3 hover:bg-[#F2F2F2] dark:hover:bg-white/5/50 transition-colors text-left cursor-pointer"
         >
           <div className="flex items-center gap-3 min-w-0">
             <Avatar name="Saved Snaps" size="md" isSaved />
@@ -295,7 +295,7 @@ export function PeopleDirectory({
               </p>
             </div>
           </div>
-          <MessageSquare className="w-4 h-4 text-[#00A6FF] shrink-0" />
+          <MessageSquare className="w-4 h-4 text-[#0E8CFF] shrink-0" />
         </button>
 
         {/* Pending Friend Requests (Accept / Decline) */}
@@ -308,7 +308,7 @@ export function PeopleDirectory({
               {incomingRequests.map(({ friendship, requester }) => (
                 <div
                   key={friendship.id}
-                  className="p-2.5 rounded-2xl bg-[#FFFC00]/20 dark:bg-[#FFFC00]/10 border border-[#FFFC00]/60 flex items-center justify-between gap-2"
+                  className="p-2.5 rounded-full bg-[#FFFC00]/20 dark:bg-[#FFFC00]/10 border border-[#FFFC00]/60 flex items-center justify-between gap-2"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Avatar
@@ -330,7 +330,7 @@ export function PeopleDirectory({
                     <button
                       type="button"
                       onClick={() => void onRespondFriendRequest(friendship.id, true)}
-                      className="h-8 px-3 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold cursor-pointer"
+                      className="h-8 px-3 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold cursor-pointer"
                     >
                       Accept
                     </button>
@@ -338,7 +338,7 @@ export function PeopleDirectory({
                       type="button"
                       onClick={() => void onRespondFriendRequest(friendship.id, false)}
                       aria-label="Decline request"
-                      className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 flex items-center justify-center cursor-pointer"
+                      className="w-8 h-8 rounded-2xl bg-white dark:bg-[#141414] text-slate-500 hover:text-rose-600 flex items-center justify-center cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -365,7 +365,7 @@ export function PeopleDirectory({
               return (
                 <div
                   key={friend.uid}
-                  className="w-full min-h-[60px] px-3 py-2 rounded-2xl flex items-center justify-between gap-2 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50 transition-colors"
+                  className="w-full min-h-[60px] px-3 py-2 rounded-2xl flex items-center justify-between gap-2 hover:bg-[#F2F2F2] dark:hover:bg-white/5/50 transition-colors"
                 >
                   <button
                     type="button"
@@ -402,10 +402,10 @@ export function PeopleDirectory({
                         type="button"
                         onClick={() => void onToggleMuteChat(friendChat.conversationId, !friendChat.muted)}
                         title={friendChat.muted ? 'Unmute notifications' : 'Mute notifications'}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer ${
                           friendChat.muted
                             ? 'bg-amber-500/15 text-amber-500'
-                            : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
                         }`}
                       >
                         <BellOff className="w-3.5 h-3.5" />
@@ -418,7 +418,7 @@ export function PeopleDirectory({
                           void (isBlocked ? onUnblockUser(friend.uid) : onBlockUser(friend.uid))
                         }
                         title={isBlocked ? 'Unblock user' : 'Block user'}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer ${
                           isBlocked
                             ? 'bg-rose-500 text-white'
                             : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30'
@@ -436,7 +436,7 @@ export function PeopleDirectory({
                           setTimeout(() => setContactFeedback(''), 2500);
                         }}
                         title="Report user"
-                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30 flex items-center justify-center cursor-pointer"
+                        className="w-7 h-7 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30 flex items-center justify-center cursor-pointer"
                       >
                         <ShieldAlert className="w-3.5 h-3.5" />
                       </button>
@@ -446,7 +446,7 @@ export function PeopleDirectory({
                         type="button"
                         onClick={() => void onRemoveFriendship(rel.id)}
                         title="Remove friend"
-                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center cursor-pointer"
+                        className="w-7 h-7 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center cursor-pointer"
                       >
                         <UserMinus className="w-3.5 h-3.5" />
                       </button>
@@ -454,7 +454,7 @@ export function PeopleDirectory({
                     <button
                       type="button"
                       onClick={() => onStartDirectChat(friend)}
-                      className="h-8 px-2.5 rounded-xl bg-[#00A6FF]/12 text-[#00A6FF] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                      className="h-8 px-2.5 rounded-full bg-[#0E8CFF]/12 text-[#0E8CFF] text-xs font-semibold flex items-center gap-1 cursor-pointer"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
                       <span>Chat</span>
@@ -487,7 +487,7 @@ export function PeopleDirectory({
             return (
               <div
                 key={person.uid}
-                className="w-full min-h-[64px] px-3 py-2 rounded-2xl flex items-center justify-between gap-2 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50 transition-colors"
+                className="w-full min-h-[64px] px-3 py-2 rounded-2xl flex items-center justify-between gap-2 hover:bg-[#F2F2F2] dark:hover:bg-white/5/50 transition-colors"
               >
                 <button
                   type="button"
@@ -515,10 +515,10 @@ export function PeopleDirectory({
                   type="button"
                   disabled={isPendingSent}
                   onClick={() => void onSendFriendRequest(person)}
-                  className={`h-8 px-3 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition-colors cursor-pointer ${
+                  className={`h-8 px-3 rounded-2xl text-xs font-bold flex items-center gap-1 shrink-0 transition-colors cursor-pointer ${
                     isPendingSent
-                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-default'
-                      : 'bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950'
+                      ? 'bg-[#F2F2F2] dark:bg-white/10 text-slate-400 cursor-default'
+                      : 'bg-[#FFFC00] hover:bg-[#F5E600] text-black'
                   }`}
                 >
                   <UserPlus className="w-3.5 h-3.5" />

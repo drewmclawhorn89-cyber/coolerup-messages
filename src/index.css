@@ -1,11 +1,37 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  /* Snapchat type: geometric, tight, friendly */
+  --font-display: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Snapchat neutral scale (pure greys, no blue cast) */
+  --color-slate-50: #fafafa;
+  --color-slate-100: #f2f2f2;
+  --color-slate-200: #e5e5e5;
+  --color-slate-300: #d4d4d4;
+  --color-slate-400: #a3a3a3;
+  --color-slate-500: #737373;
+  --color-slate-600: #525252;
+  --color-slate-700: #3d3d3d;
+  --color-slate-800: #262626;
+  --color-slate-900: #141414;
+  --color-slate-950: #0a0a0a;
+
+  /* Snapchat brand */
+  --color-snap-yellow: #fffc00;
+  --color-snap-blue: #0e8cff;
+  --color-snap-red: #ff3b5c;
+  --color-snap-purple: #a855f7;
+}
+
 @layer base {
   :root {
-    --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --snap-yellow: #fffc00;
+    --snap-blue: #0e8cff;
+    --snap-black: #0a0a0a;
   }
 
   html,
@@ -15,6 +41,7 @@
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
   }
 
   h1,
@@ -23,12 +50,73 @@
   h4,
   .font-display {
     font-family: var(--font-display);
+    letter-spacing: -0.035em;
   }
 
   .font-mono-tabular {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+
+  ::selection {
+    background: var(--snap-yellow);
+    color: #0a0a0a;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ---------- Snapchat signature pieces ---------- */
+
+/* Story ring: yellow → orange → pink → purple gradient, like the story carousel */
+.snap-story-ring {
+  background: conic-gradient(
+    from 210deg,
+    #fffc00 0deg,
+    #ffb800 70deg,
+    #ff5c8a 150deg,
+    #b45cff 230deg,
+    #4d7cff 300deg,
+    #fffc00 360deg
+  );
+}
+
+.snap-story-ring-seen {
+  background: #d4d4d4;
+}
+
+.dark .snap-story-ring-seen {
+  background: #3d3d3d;
+}
+
+/* Snapchat yellow glow used behind the camera button */
+.snap-glow {
+  box-shadow:
+    0 0 0 4px rgba(255, 252, 0, 0.22),
+    0 8px 24px -8px rgba(255, 252, 0, 0.55);
+}
+
+/* Subtle press feedback everywhere */
+.snap-press {
+  transition:
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+.snap-press:active {
+  transform: scale(0.95);
+}
+
+/* Hide scrollbar for horizontal story rails */
+.snap-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.snap-no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Custom thin scrollbars for chat panes */
@@ -42,18 +130,43 @@
 }
 
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
+  background: rgba(163, 163, 163, 0.35);
   border-radius: 9999px;
 }
 
 .chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.55);
+  background: rgba(115, 115, 115, 0.55);
 }
 
 .dark .chat-scroll::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
+  background: rgba(82, 82, 82, 0.6);
 }
 
 .dark .chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.7);
+  background: rgba(115, 115, 115, 0.8);
+}
+
+/* Snapchat-style focus: never the browser default blue */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+@keyframes snap-pop {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.snap-pop {
+  animation: snap-pop 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }

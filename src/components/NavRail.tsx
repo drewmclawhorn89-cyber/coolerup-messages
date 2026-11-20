@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import {
-  Archive,
   Bell,
   Camera,
   CircleDot,
@@ -15,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { NavTab, PublicProfile, SpotlightVideo, Story } from '../types/messenger';
 import { Avatar } from './Avatar';
+import { GhostLogo } from './GhostLogo';
 import { PWAInstallButton } from './PWAInstallButton';
 import { VideoFeed } from './VideoFeed';
 
@@ -61,54 +60,44 @@ export function NavRail({
   onOpenNotifications,
   onOpenSettings,
 }: NavRailProps) {
-  const [emblemError, setEmblemError] = useState(false);
-
   const navItems: { id: NavTab; label: string; icon: typeof MessageCircle; badge?: number }[] = [
     { id: 'map', label: 'Map', icon: MapPin },
     { id: 'chats', label: 'Chat', icon: MessageCircle, badge: totalUnread },
-    { id: 'camera', label: 'Camera', icon: Camera },
     { id: 'stories', label: 'Stories', icon: CircleDot, badge: unviewedStoriesCount },
     { id: 'spotlight', label: 'Spotlight', icon: Film },
     { id: 'people', label: 'Friends', icon: Users, badge: pendingFriendRequestsCount },
-    { id: 'archived', label: 'Archived', icon: Archive, badge: archivedCount },
   ];
+
+  const railIconButton =
+    'relative w-12 h-12 rounded-full flex items-center justify-center transition-colors snap-press cursor-pointer';
 
   return (
     <>
-      <aside className="hidden md:flex flex-col items-center justify-between w-[72px] shrink-0 py-3 bg-[#F4F6F9] dark:bg-[#0D131F] border-r border-slate-200 dark:border-slate-800/80 select-none">
-        <div className="flex flex-col items-center gap-3 w-full">
+      <aside className="hidden md:flex flex-col items-center justify-between w-[84px] shrink-0 py-4 bg-[#0A0A0A] border-r border-black select-none">
+        <div className="flex flex-col items-center gap-2.5 w-full">
+          {/* Ghost home button */}
           <button
             type="button"
             onClick={() => onSelectTab('camera')}
-            title="CoolerUp Messages"
-            className="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
+            title="CoolerUp"
+            aria-label="CoolerUp home"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-[#FFFC00] hover:bg-white/10 transition-colors cursor-pointer"
           >
-            {!emblemError ? (
-              <img
-                src="/src/assets/images/coolerup_emblem_1794968388923.jpg"
-                alt="CoolerUp Messages"
-                referrerPolicy="no-referrer"
-                onError={() => setEmblemError(true)}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-[#FFFC00] text-slate-950 font-display font-bold text-xs flex items-center justify-center">
-                CU
-              </div>
-            )}
+            <GhostLogo className="w-9 h-9" />
           </button>
 
+          {/* Big yellow camera button — the signature Snapchat action */}
           <button
             type="button"
             onClick={onOpenCamera}
-            title="Snap Camera Modal"
-            aria-label="Open Snap Camera"
-            className="w-11 h-11 rounded-2xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 shadow-sm ring-1 ring-black/10 flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+            title="Open Camera"
+            aria-label="Open Camera"
+            className="w-14 h-14 rounded-full bg-[#FFFC00] hover:bg-[#F2EF00] text-black flex items-center justify-center snap-glow snap-press cursor-pointer mt-1 mb-2"
           >
-            <Camera className="w-5 h-5" />
+            <Camera className="w-6 h-6" strokeWidth={2.4} />
           </button>
 
-          <nav className="flex flex-col items-center gap-1 w-full px-2" aria-label="Primary navigation">
+          <nav className="flex flex-col items-center gap-1 w-full" aria-label="Primary navigation">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -120,36 +109,53 @@ export function NavRail({
                   title={item.label}
                   aria-label={item.label}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`relative w-12 h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                  className={`${railIconButton} ${
                     isActive
-                      ? item.id === 'camera'
-                        ? 'bg-[#FFFC00] text-slate-950 font-bold shadow-xs'
-                        : 'bg-[#00A6FF]/14 dark:bg-[#0EA5E9]/20 text-[#0088E8] dark:text-[#38BDF8]'
-                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-200'
+                      ? 'bg-[#FFFC00] text-black'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-[22px] h-[22px]" strokeWidth={isActive ? 2.6 : 2.1} />
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#F43F5E] text-white text-[10px] font-semibold font-mono-tabular flex items-center justify-center">
+                    <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF3B5C] text-white text-[10px] font-bold font-mono-tabular flex items-center justify-center ring-2 ring-[#0A0A0A]">
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   )}
                 </button>
               );
             })}
+
+            {archivedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onSelectTab('archived')}
+                title="Archived"
+                aria-label="Archived"
+                className={`${railIconButton} ${
+                  activeTab === 'archived'
+                    ? 'bg-[#FFFC00] text-black'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <FolderHeart className="w-[22px] h-[22px]" strokeWidth={2.1} />
+                <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-white/20 text-white text-[10px] font-bold flex items-center justify-center">
+                  {archivedCount > 9 ? '9+' : archivedCount}
+                </span>
+              </button>
+            )}
           </nav>
         </div>
 
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1">
           {onOpenMemories && (
             <button
               type="button"
               onClick={onOpenMemories}
-              title="Memories & My Eyes Only"
+              title="Memories"
               aria-label="Memories"
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              className={`${railIconButton} text-white/70 hover:bg-white/10 hover:text-white`}
             >
-              <FolderHeart className="w-4.5 h-4.5" />
+              <FolderHeart className="w-5 h-5" />
             </button>
           )}
           {onOpenNotifications && (
@@ -158,11 +164,11 @@ export function NavRail({
               onClick={onOpenNotifications}
               title="Notifications"
               aria-label="Notifications"
-              className="relative w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              className={`${railIconButton} text-white/70 hover:bg-white/10 hover:text-white`}
             >
-              <Bell className="w-4.5 h-4.5" />
+              <Bell className="w-5 h-5" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[15px] h-3.5 px-1 rounded-full bg-[#F43F5E] text-white text-[9px] font-bold flex items-center justify-center">
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3B5C] text-white text-[9px] font-bold flex items-center justify-center">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
@@ -174,9 +180,9 @@ export function NavRail({
               onClick={onOpenSettings}
               title="Settings"
               aria-label="Settings"
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              className={`${railIconButton} text-white/70 hover:bg-white/10 hover:text-white`}
             >
-              <Settings className="w-4.5 h-4.5" />
+              <Settings className="w-5 h-5" />
             </button>
           )}
           <PWAInstallButton variant="rail" />
@@ -184,15 +190,16 @@ export function NavRail({
             type="button"
             onClick={onToggleTheme}
             title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-200 transition-colors cursor-pointer"
+            className={`${railIconButton} text-white/70 hover:bg-white/10 hover:text-white`}
           >
-            {darkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
           <button
             type="button"
             onClick={onOpenProfile}
             title={`${profile.displayName} · Snap Score ${profile.snapScore ?? 0}`}
-            className="p-0.5 rounded-full hover:ring-2 hover:ring-[#FFFC00] transition-all cursor-pointer"
+            aria-label="Open profile"
+            className="mt-1 p-[2px] rounded-full bg-[#FFFC00] hover:scale-105 transition-transform cursor-pointer"
           >
             <Avatar
               name={profile.displayName}

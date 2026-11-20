@@ -126,11 +126,11 @@ export function ProfileModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md max-h-[90vh] flex flex-col bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden"
+        className="w-full max-w-md max-h-[90vh] flex flex-col bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-          <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between shrink-0">
+          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
             Profile, Trophies &amp; Snapcode
           </h2>
           <div className="flex items-center gap-1.5">
@@ -142,7 +142,7 @@ export function ProfileModal({
                   onOpenSettings();
                 }}
                 aria-label="Open Settings"
-                className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
               >
                 <Settings className="w-4 h-4" />
               </button>
@@ -151,7 +151,7 @@ export function ProfileModal({
               type="button"
               onClick={onClose}
               aria-label="Close modal"
-              className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -160,13 +160,13 @@ export function ProfileModal({
 
         {/* Section Tabs */}
         <div className="px-5 pt-3 shrink-0">
-          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
             <button
               type="button"
               onClick={() => setSection('profile')}
-              className={`h-8 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+              className={`h-8 rounded-xl text-xs font-medium cursor-pointer transition-colors ${
                 section === 'profile'
-                  ? 'bg-white dark:bg-[#1A2232] text-slate-900 dark:text-white shadow-2xs'
+                  ? 'bg-white dark:bg-[#232323] text-slate-900 dark:text-white shadow-2xs'
                   : 'text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -175,9 +175,9 @@ export function ProfileModal({
             <button
               type="button"
               onClick={() => setSection('bitmoji')}
-              className={`h-8 rounded-lg text-xs font-medium cursor-pointer transition-colors flex items-center justify-center gap-1 ${
+              className={`h-8 rounded-xl text-xs font-medium cursor-pointer transition-colors flex items-center justify-center gap-1 ${
                 section === 'bitmoji'
-                  ? 'bg-white dark:bg-[#1A2232] text-slate-900 dark:text-white shadow-2xs'
+                  ? 'bg-white dark:bg-[#232323] text-slate-900 dark:text-white shadow-2xs'
                   : 'text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -187,7 +187,7 @@ export function ProfileModal({
             <button
               type="button"
               onClick={() => setSection('snapcode')}
-              className={`h-8 rounded-lg text-xs font-medium cursor-pointer transition-colors flex items-center justify-center gap-1 ${
+              className={`h-8 rounded-xl text-xs font-medium cursor-pointer transition-colors flex items-center justify-center gap-1 ${
                 section === 'snapcode'
                   ? 'bg-[#FFFC00] text-slate-950 font-semibold shadow-2xs'
                   : 'text-slate-500 dark:text-slate-400'
@@ -214,7 +214,7 @@ export function ProfileModal({
                 <button
                   type="button"
                   onClick={handleCopySnapcode}
-                  className="flex-1 h-10 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 h-10 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   <span>{copied ? 'Snapcode Copied!' : 'Copy Snapcode'}</span>
@@ -222,7 +222,7 @@ export function ProfileModal({
                 <button
                   type="button"
                   onClick={handleCopyInvite}
-                  className="flex-1 h-10 rounded-xl bg-[#F4F6F9] dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 h-10 rounded-2xl bg-[#F2F2F2] dark:bg-white/10 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Copy className="w-4 h-4" />
                   <span>Copy Invite Link</span>
@@ -231,7 +231,7 @@ export function ProfileModal({
             </div>
           ) : section === 'bitmoji' ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-4 p-3 rounded-2xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+              <div className="flex items-center gap-4 p-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
                 <Avatar
                   name={displayName}
                   photoURL={profile.photoURL}
@@ -248,10 +248,10 @@ export function ProfileModal({
                   <button
                     type="button"
                     onClick={() => setUseBitmoji((v) => !v)}
-                    className={`h-8 px-3 rounded-lg text-xs font-semibold cursor-pointer ${
+                    className={`h-8 px-3 rounded-xl text-xs font-semibold cursor-pointer ${
                       useBitmoji
                         ? 'bg-[#FFFC00] text-slate-950'
-                        : 'bg-white dark:bg-[#1A2232] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                        : 'bg-white dark:bg-[#232323] border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-200'
                     }`}
                   >
                     {useBitmoji ? 'Using Bitmoji Avatar' : 'Switch to Bitmoji'}
@@ -316,10 +316,10 @@ export function ProfileModal({
                         setUseBitmoji(true);
                         setBitmojiCfg((prev) => ({ ...prev, hairStyle: style }));
                       }}
-                      className={`h-8 px-3 rounded-lg text-xs font-medium capitalize cursor-pointer ${
+                      className={`h-8 px-3 rounded-xl text-xs font-medium capitalize cursor-pointer ${
                         bitmojiCfg.hairStyle === style
-                          ? 'bg-[#00A6FF] text-white'
-                          : 'bg-[#F4F6F9] dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                          ? 'bg-[#0E8CFF] text-white'
+                          : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-700 dark:text-slate-300'
                       }`}
                     >
                       {style}
@@ -358,10 +358,10 @@ export function ProfileModal({
                           setUseBitmoji(true);
                           setBitmojiCfg((prev) => ({ ...prev, glasses: g }));
                         }}
-                        className={`flex-1 h-8 rounded-lg text-xs font-medium capitalize cursor-pointer ${
+                        className={`flex-1 h-8 rounded-xl text-xs font-medium capitalize cursor-pointer ${
                           bitmojiCfg.glasses === g
-                            ? 'bg-[#00A6FF] text-white'
-                            : 'bg-[#F4F6F9] dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            ? 'bg-[#0E8CFF] text-white'
+                            : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         {g}
@@ -382,10 +382,10 @@ export function ProfileModal({
                           setUseBitmoji(true);
                           setBitmojiCfg((prev) => ({ ...prev, expression: ex }));
                         }}
-                        className={`flex-1 h-8 rounded-lg text-xs font-medium capitalize cursor-pointer ${
+                        className={`flex-1 h-8 rounded-xl text-xs font-medium capitalize cursor-pointer ${
                           bitmojiCfg.expression === ex
-                            ? 'bg-[#00A6FF] text-white'
-                            : 'bg-[#F4F6F9] dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            ? 'bg-[#0E8CFF] text-white'
+                            : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         {ex}
@@ -418,7 +418,7 @@ export function ProfileModal({
                   <button
                     type="button"
                     onClick={handleCopyInvite}
-                    className="mt-2 h-8 px-3 rounded-lg bg-[#F4F6F9] dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="mt-2 h-8 px-3 rounded-xl bg-[#F2F2F2] dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/10 text-xs font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copied ? 'Link copied' : 'Copy invite link'}</span>
@@ -436,7 +436,7 @@ export function ProfileModal({
                     value={displayName}
                     maxLength={LIMITS.DISPLAY_NAME_MAX}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full h-10 px-3.5 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#00A6FF]"
+                    className="w-full h-10 px-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/80 dark:border-white/10 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#0E8CFF]"
                   />
                 </div>
 
@@ -453,7 +453,7 @@ export function ProfileModal({
                       value={handle}
                       maxLength={LIMITS.HANDLE_MAX}
                       onChange={(e) => setHandle(e.target.value.toLowerCase())}
-                      className="w-full h-10 pl-8 pr-3.5 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#00A6FF]"
+                      className="w-full h-10 pl-8 pr-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/80 dark:border-white/10 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#0E8CFF]"
                     />
                   </div>
                 </div>
@@ -468,13 +468,13 @@ export function ProfileModal({
                     maxLength={LIMITS.STATUS_TEXT_MAX}
                     onChange={(e) => setStatusText(e.target.value)}
                     placeholder="What are you up to?"
-                    className="w-full h-10 px-3.5 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#00A6FF]"
+                    className="w-full h-10 px-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/80 dark:border-white/10 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[#0E8CFF]"
                   />
                 </div>
               </div>
 
               <div className="pt-1 space-y-2.5">
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+                <div className="flex items-center justify-between py-2 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                       Discoverable in Add Friends
@@ -489,7 +489,7 @@ export function ProfileModal({
                     aria-checked={isDiscoverable}
                     onClick={() => setIsDiscoverable((v) => !v)}
                     className={`w-11 h-6 rounded-full transition-colors p-0.5 cursor-pointer ${
-                      isDiscoverable ? 'bg-[#00A6FF]' : 'bg-slate-300 dark:bg-slate-700'
+                      isDiscoverable ? 'bg-[#0E8CFF]' : 'bg-[#E5E5E5] dark:bg-white/15'
                     }`}
                   >
                     <span
@@ -500,7 +500,7 @@ export function ProfileModal({
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+                <div className="flex items-center justify-between py-2 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                       Appearance
@@ -512,7 +512,7 @@ export function ProfileModal({
                   <button
                     type="button"
                     onClick={onToggleTheme}
-                    className="h-9 px-3 rounded-lg bg-white dark:bg-[#1A2232] border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+                    className="h-9 px-3 rounded-xl bg-white dark:bg-[#232323] border border-slate-100 dark:border-white/10 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
                   >
                     {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
                     <span>{darkMode ? 'Light' : 'Dark'}</span>
@@ -523,7 +523,7 @@ export function ProfileModal({
               </div>
 
               {/* Streaks & Trophies Showcase */}
-              <div className="p-3.5 rounded-2xl bg-[#F4F6F9] dark:bg-[#0B0F17] space-y-2.5">
+              <div className="p-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                     <Award className="w-4 h-4 text-[#FFFC00] fill-[#FFFC00] stroke-slate-950" />
@@ -545,10 +545,10 @@ export function ProfileModal({
                     return (
                       <div
                         key={tr.id}
-                        className={`p-2 rounded-xl text-center border ${
+                        className={`p-2 rounded-2xl text-center border ${
                           unlocked
-                            ? 'bg-white dark:bg-[#1A2232] border-[#FFFC00] shadow-2xs'
-                            : 'bg-slate-200/50 dark:bg-slate-900/50 border-transparent opacity-45'
+                            ? 'bg-white dark:bg-[#232323] border-[#FFFC00] shadow-2xs'
+                            : 'bg-slate-200/50 dark:bg-[#0F0F0F]/50 border-transparent opacity-45'
                         }`}
                       >
                         <div className="text-xl leading-none mb-1">{tr.icon}</div>
@@ -568,11 +568,11 @@ export function ProfileModal({
           )}
         </div>
 
-        <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="px-5 py-3.5 border-t border-slate-100 dark:border-white/10 flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={onSignOut}
-            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
+            className="h-10 px-4 rounded-2xl border border-slate-100 dark:border-white/10 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>
@@ -582,7 +582,7 @@ export function ProfileModal({
             type="button"
             disabled={saving}
             onClick={handleSave}
-            className="h-10 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold transition-colors cursor-pointer"
+            className="h-10 px-5 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold transition-colors cursor-pointer"
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>

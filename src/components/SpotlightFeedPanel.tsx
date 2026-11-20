@@ -680,7 +680,7 @@ export function SpotlightFeedPanel({
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FFFC00] text-slate-950 flex items-center justify-center shadow-xs shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center shadow-xs shrink-0">
               <Film className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <h1 className="font-display text-base sm:text-lg font-bold text-white leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
@@ -690,7 +690,7 @@ export function SpotlightFeedPanel({
 
           {/* Segmented Filter */}
           <div
-            className="flex items-center bg-black/45 backdrop-blur-md p-1 rounded-xl border border-white/15"
+            className="flex items-center bg-black/45 backdrop-blur-md p-1 rounded-2xl border border-white/15"
             role="tablist"
             aria-label="Spotlight feed filter"
           >
@@ -707,7 +707,7 @@ export function SpotlightFeedPanel({
                 role="tab"
                 aria-selected={filter === tab.id}
                 onClick={() => setFilter(tab.id)}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
                   filter === tab.id
                     ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
                     : 'text-white/80 hover:text-white'
@@ -723,7 +723,7 @@ export function SpotlightFeedPanel({
             <button
               type="button"
               onClick={onOpenCameraForSpotlight}
-              className="h-9 px-3 sm:px-3.5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="h-9 px-3 sm:px-3.5 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <Camera className="w-4 h-4" />
               <span className="hidden xs:inline sm:inline">Record 720p</span>
@@ -734,7 +734,7 @@ export function SpotlightFeedPanel({
                 setUploadError('');
                 setShowUploadModal(true);
               }}
-              className="h-9 px-3 sm:px-3.5 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-9 px-3 sm:px-3.5 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Post Video</span>
@@ -747,7 +747,7 @@ export function SpotlightFeedPanel({
       {filteredVideos.length === 0 ? (
         <div className="w-screen h-[100dvh] bg-black flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-white/10 backdrop-blur-md border border-white/15 rounded-3xl p-8 text-center">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#FFFC00] text-slate-950 flex items-center justify-center">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center">
               <Film className="w-7 h-7" />
             </div>
             <h2 className="font-display text-xl font-bold text-white mb-2">
@@ -764,7 +764,7 @@ export function SpotlightFeedPanel({
               <button
                 type="button"
                 onClick={onOpenCameraForSpotlight}
-                className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer"
+                className="h-11 px-5 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-sm font-bold flex items-center gap-2 cursor-pointer"
               >
                 <Camera className="w-4 h-4" />
                 <span>Record 720p Video</span>
@@ -772,7 +772,7 @@ export function SpotlightFeedPanel({
               <button
                 type="button"
                 onClick={() => setShowUploadModal(true)}
-                className="h-11 px-5 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
+                className="h-11 px-5 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
                 <span>Upload Video</span>
@@ -884,7 +884,7 @@ export function SpotlightFeedPanel({
                   <button
                     type="button"
                     onClick={handleEnableSound}
-                    className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-10 h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
+                    className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-10 h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
                   >
                     <Volume2 className="w-4 h-4" />
                     <span>Tap to Hear Music &amp; Sound</span>
@@ -907,7 +907,7 @@ export function SpotlightFeedPanel({
                             setEditingMusicTrackId('lofi');
                             setEditMusicVideo(vid);
                           }}
-                          className="h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
+                          className="h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap"
                         >
                           <Music2 className="w-4 h-4" />
                           <span>Clip has no sound · Add Music</span>
@@ -1069,7 +1069,7 @@ export function SpotlightFeedPanel({
                         aria-label={`Chat with ${vid.authorName}`}
                         className="flex flex-col items-center gap-1 cursor-pointer"
                       >
-                        <span className="w-11 h-11 rounded-full bg-[#00A6FF] hover:bg-[#0090E0] text-white flex items-center justify-center transition-transform active:scale-90">
+                        <span className="w-11 h-11 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] text-white flex items-center justify-center transition-transform active:scale-90">
                           <MessageCircle className="w-5 h-5" />
                         </span>
                         <span className="text-[11px] font-medium text-white">Chat</span>
@@ -1091,7 +1091,7 @@ export function SpotlightFeedPanel({
                         aria-label="Add or change music track"
                         className="flex flex-col items-center gap-1 cursor-pointer"
                       >
-                        <span className="w-11 h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 flex items-center justify-center transition-transform active:scale-90">
+                        <span className="w-11 h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black flex items-center justify-center transition-transform active:scale-90">
                           <Music2 className="w-5 h-5" />
                         </span>
                         <span className="text-[11px] font-medium text-white">Music</span>
@@ -1162,15 +1162,15 @@ export function SpotlightFeedPanel({
           onClick={() => setShowUploadModal(false)}
         >
           <div
-            className="w-full max-w-md max-h-[90vh] bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col"
+            className="w-full max-w-md max-h-[90vh] bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <span className="w-8 h-8 rounded-lg bg-[#FFFC00] text-slate-950 flex items-center justify-center">
+                <span className="w-8 h-8 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center">
                   <Film className="w-4 h-4" />
                 </span>
-                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                   Post 720p Video to Spotlight
                 </h3>
               </div>
@@ -1178,7 +1178,7 @@ export function SpotlightFeedPanel({
                 type="button"
                 onClick={() => setShowUploadModal(false)}
                 aria-label="Close upload modal"
-                className="w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1205,9 +1205,9 @@ export function SpotlightFeedPanel({
                     unlockVideoTranscodeAudio();
                     fileInputRef.current?.click();
                   }}
-                  className="w-full py-9 px-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#00A6FF] bg-[#F9FAFC] dark:bg-[#0D131F] flex flex-col items-center justify-center gap-2 text-center cursor-pointer transition-colors"
+                  className="w-full py-9 px-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-white/10 hover:border-[#0E8CFF] bg-[#FAFAFA] dark:bg-[#101010] flex flex-col items-center justify-center gap-2 text-center cursor-pointer transition-colors"
                 >
-                  <span className="w-12 h-12 rounded-2xl bg-[#FFFC00] text-slate-950 flex items-center justify-center">
+                  <span className="w-12 h-12 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center">
                     {processingFile ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
@@ -1295,7 +1295,7 @@ export function SpotlightFeedPanel({
                   maxLength={LIMITS.STORY_CAPTION_MAX}
                   onChange={(e) => setUploadCaption(e.target.value)}
                   placeholder="Describe your video or add #hashtags..."
-                  className="w-full h-11 px-3.5 rounded-xl bg-[#F4F6F9] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#00A6FF]"
+                  className="w-full h-11 px-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-white/10/80 border border-slate-100 dark:border-white/10 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#0E8CFF]"
                 />
               </div>
 
@@ -1318,16 +1318,16 @@ export function SpotlightFeedPanel({
                             setUploadSoundTitle(track.title);
                           }
                         }}
-                        className={`px-3 py-2 rounded-xl border flex items-center justify-between text-left transition-colors cursor-pointer ${
+                        className={`px-3 py-2 rounded-2xl border flex items-center justify-between text-left transition-colors cursor-pointer ${
                           selected
-                            ? 'border-[#00A6FF] bg-[#00A6FF]/10 dark:bg-[#00A6FF]/15'
-                            : 'border-slate-200 dark:border-slate-700/80 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50'
+                            ? 'border-[#0E8CFF] bg-[#0E8CFF]/10 dark:bg-[#0E8CFF]/15'
+                            : 'border-slate-100 dark:border-white/10/80 hover:bg-[#F2F2F2] dark:hover:bg-white/5/50'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Music2
                             className={`w-4 h-4 shrink-0 ${
-                              selected ? 'text-[#00A6FF]' : 'text-slate-400'
+                              selected ? 'text-[#0E8CFF]' : 'text-slate-400'
                             }`}
                           />
                           <div className="min-w-0">
@@ -1339,7 +1339,7 @@ export function SpotlightFeedPanel({
                             </p>
                           </div>
                         </div>
-                        {selected && <Check className="w-4 h-4 text-[#00A6FF] shrink-0" />}
+                        {selected && <Check className="w-4 h-4 text-[#0E8CFF] shrink-0" />}
                       </button>
                     );
                   })}
@@ -1356,7 +1356,7 @@ export function SpotlightFeedPanel({
                   maxLength={LIMITS.SOUND_TITLE_MAX}
                   onChange={(e) => setUploadSoundTitle(e.target.value)}
                   placeholder={`Original Sound · ${currentUser.displayName.split(' ')[0]}`}
-                  className="w-full h-11 px-3.5 rounded-xl bg-[#F4F6F9] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#00A6FF]"
+                  className="w-full h-11 px-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-white/10/80 border border-slate-100 dark:border-white/10 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#0E8CFF]"
                 />
               </div>
 
@@ -1371,7 +1371,7 @@ export function SpotlightFeedPanel({
                     setShowUploadModal(false);
                     onOpenCameraForSpotlight();
                   }}
-                  className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+                  className="h-11 px-4 rounded-2xl border border-slate-100 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Camera className="w-4 h-4" />
                   <span>Use Camera</span>
@@ -1379,7 +1379,7 @@ export function SpotlightFeedPanel({
                 <button
                   type="submit"
                   disabled={!uploadVideoData || processingFile || postingVideo}
-                  className="flex-1 h-11 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold cursor-pointer transition-colors"
+                  className="flex-1 h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold cursor-pointer transition-colors"
                 >
                   {postingVideo ? 'Uploading 720p...' : 'Post to Spotlight'}
                 </button>
@@ -1396,18 +1396,18 @@ export function SpotlightFeedPanel({
           onClick={() => setShareVideo(null)}
         >
           <div
-            className="w-full max-w-md max-h-[80vh] bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col"
+            className="w-full max-w-md max-h-[80vh] bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
+              <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                 Send Video to Chat
               </h3>
               <button
                 type="button"
                 onClick={() => setShareVideo(null)}
                 aria-label="Close share picker"
-                className="w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1426,7 +1426,7 @@ export function SpotlightFeedPanel({
                   type="button"
                   disabled={forwardingId !== null}
                   onClick={() => void handleForwardToConv(chat.conversationId)}
-                  className="w-full px-3 py-2.5 rounded-2xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 flex items-center justify-between gap-3 cursor-pointer disabled:opacity-50"
+                  className="w-full px-3 py-2.5 rounded-2xl hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 flex items-center justify-between gap-3 cursor-pointer disabled:opacity-50"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar
@@ -1440,7 +1440,7 @@ export function SpotlightFeedPanel({
                       {chat.title}
                     </span>
                   </div>
-                  <span className="h-8 px-3 rounded-lg bg-[#00A6FF] text-white text-xs font-semibold flex items-center gap-1 shrink-0">
+                  <span className="h-8 px-3 rounded-full bg-[#0E8CFF] text-white text-xs font-semibold flex items-center gap-1 shrink-0">
                     <Send className="w-3.5 h-3.5" />
                     <span>{forwardingId === chat.conversationId ? 'Sending' : 'Send'}</span>
                   </span>
@@ -1453,7 +1453,7 @@ export function SpotlightFeedPanel({
                   type="button"
                   disabled={forwardingId !== null}
                   onClick={() => void handleForwardToPeer(peer)}
-                  className="w-full px-3 py-2.5 rounded-2xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 flex items-center justify-between gap-3 cursor-pointer disabled:opacity-50"
+                  className="w-full px-3 py-2.5 rounded-2xl hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 flex items-center justify-between gap-3 cursor-pointer disabled:opacity-50"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar
@@ -1469,7 +1469,7 @@ export function SpotlightFeedPanel({
                       <p className="text-xs text-slate-400 truncate">@{peer.handle}</p>
                     </div>
                   </div>
-                  <span className="h-8 px-3 rounded-lg bg-[#00A6FF] text-white text-xs font-semibold flex items-center gap-1 shrink-0">
+                  <span className="h-8 px-3 rounded-full bg-[#0E8CFF] text-white text-xs font-semibold flex items-center gap-1 shrink-0">
                     <Send className="w-3.5 h-3.5" />
                     <span>{forwardingId === peer.uid ? 'Sending' : 'Send'}</span>
                   </span>
@@ -1487,15 +1487,15 @@ export function SpotlightFeedPanel({
           onClick={() => setEditMusicVideo(null)}
         >
           <div
-            className="w-full max-w-md bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col"
+            className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="w-8 h-8 rounded-lg bg-[#FFFC00] text-slate-950 flex items-center justify-center">
+                <span className="w-8 h-8 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center">
                   <Music2 className="w-4 h-4" />
                 </span>
-                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                   Add Music to Spotlight Video
                 </h3>
               </div>
@@ -1503,7 +1503,7 @@ export function SpotlightFeedPanel({
                 type="button"
                 onClick={() => setEditMusicVideo(null)}
                 aria-label="Close music picker"
-                className="w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1520,16 +1520,16 @@ export function SpotlightFeedPanel({
                       void resumeSpotlightAudioContext();
                       setEditingMusicTrackId(track.id);
                     }}
-                    className={`w-full px-3.5 py-2.5 rounded-xl border flex items-center justify-between text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3.5 py-2.5 rounded-2xl border flex items-center justify-between text-left transition-colors cursor-pointer ${
                       selected
-                        ? 'border-[#00A6FF] bg-[#00A6FF]/10 dark:bg-[#00A6FF]/15'
-                        : 'border-slate-200 dark:border-slate-700/80 hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50'
+                        ? 'border-[#0E8CFF] bg-[#0E8CFF]/10 dark:bg-[#0E8CFF]/15'
+                        : 'border-slate-100 dark:border-white/10/80 hover:bg-[#F2F2F2] dark:hover:bg-white/5/50'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Music2
                         className={`w-4 h-4 shrink-0 ${
-                          selected ? 'text-[#00A6FF]' : 'text-slate-400'
+                          selected ? 'text-[#0E8CFF]' : 'text-slate-400'
                         }`}
                       />
                       <div className="min-w-0">
@@ -1541,17 +1541,17 @@ export function SpotlightFeedPanel({
                         </p>
                       </div>
                     </div>
-                    {selected && <Check className="w-4 h-4 text-[#00A6FF] shrink-0" />}
+                    {selected && <Check className="w-4 h-4 text-[#0E8CFF] shrink-0" />}
                   </button>
                 );
               })}
             </div>
 
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2">
+            <div className="p-4 border-t border-slate-100 dark:border-white/10 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setEditMusicVideo(null)}
-                className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                className="h-11 px-4 rounded-2xl border border-slate-100 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1575,7 +1575,7 @@ export function SpotlightFeedPanel({
                     setSavingMusic(false);
                   }
                 }}
-                className="flex-1 h-11 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold cursor-pointer"
+                className="flex-1 h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold cursor-pointer"
               >
                 {savingMusic ? 'Saving Music...' : 'Save Music Track'}
               </button>
@@ -1591,12 +1591,12 @@ export function SpotlightFeedPanel({
           onClick={() => setCommentsVideo(null)}
         >
           <div
-            className="w-full max-w-md max-h-[75vh] bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-xl flex flex-col"
+            className="w-full max-w-md max-h-[75vh] bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                   Comments ({comments.length})
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -1607,7 +1607,7 @@ export function SpotlightFeedPanel({
                 type="button"
                 onClick={() => setCommentsVideo(null)}
                 aria-label="Close comments"
-                className="w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1626,7 +1626,7 @@ export function SpotlightFeedPanel({
                       photoURL={cmt.authorPhotoURL}
                       size="xs"
                     />
-                    <div className="flex-1 min-w-0 bg-[#F4F6F9] dark:bg-slate-800/70 rounded-2xl px-3 py-2">
+                    <div className="flex-1 min-w-0 bg-[#F2F2F2] dark:bg-white/10/70 rounded-2xl px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                           {cmt.authorName}
@@ -1668,7 +1668,7 @@ export function SpotlightFeedPanel({
                   setPostingComment(false);
                 }
               }}
-              className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2"
+              className="p-3 border-t border-slate-100 dark:border-white/10 flex items-center gap-2"
             >
               <input
                 type="text"
@@ -1676,7 +1676,7 @@ export function SpotlightFeedPanel({
                 maxLength={500}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Add a comment..."
-                className="flex-1 h-10 px-3.5 rounded-full bg-[#F4F6F9] dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
+                className="flex-1 h-10 px-3.5 rounded-full bg-[#F2F2F2] dark:bg-white/10 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
               />
               <button
                 type="submit"

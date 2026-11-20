@@ -140,12 +140,12 @@ export function SnapMapScreen({
   };
 
   return (
-    <div className="relative flex-1 w-full h-full min-h-[420px] bg-slate-100 dark:bg-[#0B0F17] overflow-hidden pb-14 md:pb-0">
+    <div className="relative flex-1 w-full h-full min-h-[420px] bg-slate-100 dark:bg-[#0A0A0A] overflow-hidden pb-14 md:pb-0">
       {/* Top Map Controls */}
       <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="h-10 px-3.5 rounded-full bg-white/95 dark:bg-[#121824]/95 shadow-md border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-[#00A6FF]" />
+          <div className="h-10 px-3.5 rounded-full bg-white/95 dark:bg-[#141414]/95 shadow-md border border-slate-100 dark:border-white/10 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-[#0E8CFF]" />
             <span className="text-xs font-bold text-slate-900 dark:text-white">Snap Map</span>
           </div>
 
@@ -155,7 +155,7 @@ export function SnapMapScreen({
             className={`h-10 px-3.5 rounded-full shadow-md border text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
               showHeatmap
                 ? 'bg-[#FFFC00] border-amber-300 text-slate-950'
-                : 'bg-white/95 dark:bg-[#121824]/95 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                : 'bg-white/95 dark:bg-[#141414]/95 border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-200'
             }`}
           >
             <Flame className="w-3.5 h-3.5" />
@@ -168,7 +168,7 @@ export function SnapMapScreen({
             type="button"
             onClick={handleShareLocation}
             disabled={locating}
-            className="h-10 px-3.5 rounded-full bg-[#00A6FF] hover:bg-[#0090E0] text-white text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+            className="h-10 px-3.5 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] text-white text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
           >
             <Navigation className="w-3.5 h-3.5" />
             <span>{locating ? 'Locating...' : 'Update Location'}</span>
@@ -180,7 +180,7 @@ export function SnapMapScreen({
             className={`h-10 px-3.5 rounded-full shadow-md border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
               myGhostMode
                 ? 'bg-slate-900 text-[#FFFC00] border-slate-700'
-                : 'bg-white/95 dark:bg-[#121824]/95 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100'
+                : 'bg-white/95 dark:bg-[#141414]/95 border-slate-100 dark:border-white/10 text-slate-800 dark:text-slate-100'
             }`}
           >
             <EyeOff className="w-3.5 h-3.5" />
@@ -268,7 +268,7 @@ export function SnapMapScreen({
                   <div className="flex flex-col items-center cursor-pointer transition-transform hover:scale-110">
                     <div
                       className={`p-0.5 rounded-full shadow-lg ${
-                        item.isFriend ? 'bg-[#00A6FF] ring-2 ring-white' : 'bg-white ring-1 ring-slate-300'
+                        item.isFriend ? 'bg-[#0E8CFF] ring-2 ring-white' : 'bg-white ring-1 ring-slate-300'
                       }`}
                     >
                       <Avatar
@@ -319,7 +319,7 @@ export function SnapMapScreen({
         </div>
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
-          <MapPin className="w-10 h-10 text-[#00A6FF] mb-3" />
+          <MapPin className="w-10 h-10 text-[#0E8CFF] mb-3" />
           <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">
             Google Maps API Key Not Configured
           </p>
@@ -331,7 +331,7 @@ export function SnapMapScreen({
 
       {/* Selected Friend Floating Card */}
       {selectedPeer && (
-        <div className="absolute bottom-20 md:bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:w-80 z-30 p-4 rounded-3xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 shadow-xl">
+        <div className="absolute bottom-20 md:bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:w-80 z-30 p-4 rounded-3xl bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 shadow-xl">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3 min-w-0">
               <Avatar
@@ -354,7 +354,7 @@ export function SnapMapScreen({
               type="button"
               onClick={() => setSelectedPeer(null)}
               aria-label="Close friend card"
-              className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 cursor-pointer"
+              className="w-8 h-8 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 flex items-center justify-center text-slate-400 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -368,7 +368,7 @@ export function SnapMapScreen({
                 setSelectedPeer(null);
                 onSendSnapToPeer(target);
               }}
-              className="h-10 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="h-10 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Camera className="w-4 h-4" />
               <span>Send Snap</span>
@@ -380,7 +380,7 @@ export function SnapMapScreen({
                 setSelectedPeer(null);
                 onChatWithPeer(target);
               }}
-              className="h-10 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="h-10 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Chat</span>

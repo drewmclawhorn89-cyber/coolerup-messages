@@ -14,7 +14,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
   if (isInstalled) {
     if (variant === 'row') {
       return (
-        <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+        <div className="flex items-center justify-between py-2 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
           <div>
             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
               CoolerUp App
@@ -58,7 +58,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
           disabled={installing}
           title="Download CoolerUp Messages app"
           aria-label="Download CoolerUp Messages app"
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-[#0066FF] dark:text-[#60A5FA] bg-[#0066FF]/10 dark:bg-[#1D6FFF]/20 hover:bg-[#0066FF]/20 transition-colors cursor-pointer"
+          className="w-11 h-11 rounded-2xl flex items-center justify-center text-[#0066FF] dark:text-[#60A5FA] bg-[#0066FF]/10 dark:bg-[#1D6FFF]/20 hover:bg-[#0066FF]/20 transition-colors cursor-pointer"
         >
           <Download className="w-5 h-5" />
         </button>
@@ -73,7 +73,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
           disabled={installing}
           title="Install CoolerUp Messages"
           aria-label="Install CoolerUp Messages"
-          className="min-w-[40px] min-h-[40px] rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-[#0066FF] dark:text-[#60A5FA] flex items-center justify-center transition-colors cursor-pointer"
+          className="min-w-[40px] min-h-[40px] rounded-2xl bg-[#F2F2F2] dark:bg-white/10/80 hover:bg-slate-200 dark:hover:bg-white/10 text-[#0066FF] dark:text-[#60A5FA] flex items-center justify-center transition-colors cursor-pointer"
         >
           <Download className="w-4 h-4" />
         </button>
@@ -82,7 +82,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
 
     if (variant === 'row') {
       return (
-        <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+        <div className="flex items-center justify-between py-2 px-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
           <div>
             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
               Install App
@@ -95,7 +95,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
             type="button"
             onClick={handleClick}
             disabled={installing}
-            className="h-9 px-3 rounded-lg bg-[#0066FF] hover:bg-[#0052CC] text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+            className="h-9 px-3 rounded-xl bg-[#0066FF] hover:bg-[#0052CC] text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             <span>{installing ? 'Installing...' : 'Download'}</span>
@@ -109,7 +109,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
         type="button"
         onClick={handleClick}
         disabled={installing}
-        className="h-12 px-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#121824] hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-800 dark:text-slate-100 text-sm font-medium flex items-center gap-2.5 transition-colors cursor-pointer whitespace-nowrap"
+        className="h-12 px-5 rounded-2xl border border-slate-100 dark:border-white/10 bg-white dark:bg-[#141414] hover:bg-slate-50 dark:hover:bg-white/5/70 text-slate-800 dark:text-slate-100 text-sm font-medium flex items-center gap-2.5 transition-colors cursor-pointer whitespace-nowrap"
       >
         <Download className="w-4 h-4 text-[#0066FF] dark:text-[#60A5FA]" />
         <span>{installing ? 'Installing...' : 'Download App'}</span>
@@ -127,17 +127,17 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
           onClick={() => setShowGuide(false)}
         >
           <div
-            className="w-full max-w-md bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <img
                   src="/pwa-192x192.png"
                   alt="CoolerUp Messages icon"
-                  className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
+                  className="w-8 h-8 rounded-xl object-cover border border-slate-100 dark:border-white/10"
                 />
-                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                   Download CoolerUp Messages
                 </h3>
               </div>
@@ -145,7 +145,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
                 type="button"
                 onClick={() => setShowGuide(false)}
                 aria-label="Close install instructions"
-                className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -157,7 +157,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
               </p>
 
               {isInIframe && (
-                <div className="p-3.5 rounded-xl bg-[#0066FF]/8 dark:bg-[#1D6FFF]/15 border border-[#0066FF]/20">
+                <div className="p-3.5 rounded-2xl bg-[#0066FF]/8 dark:bg-[#1D6FFF]/15 border border-[#0066FF]/20">
                   <p className="text-xs font-semibold text-slate-900 dark:text-white mb-1">
                     Open in Google Chrome to trigger 1-click install
                   </p>
@@ -168,7 +168,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
                     href={window.location.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="h-9 px-3.5 rounded-lg bg-[#0066FF] hover:bg-[#0052CC] text-white text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                    className="h-9 px-3.5 rounded-xl bg-[#0066FF] hover:bg-[#0052CC] text-white text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
                   >
                     <span>Open in New Tab</span>
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -177,7 +177,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
               )}
 
               {!isIOS && (
-                <div className="p-3.5 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/70 dark:border-slate-800 space-y-2">
+                <div className="p-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/70 dark:border-white/10 space-y-2">
                   <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-xs">
                     {isAndroid ? (
                       <Smartphone className="w-4 h-4 text-[#0066FF]" />
@@ -209,7 +209,7 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
                 </div>
               )}
 
-              <div className="p-3.5 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/70 dark:border-slate-800 space-y-2">
+              <div className="p-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/70 dark:border-white/10 space-y-2">
                 <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-xs">
                   <Smartphone className="w-4 h-4 text-[#0066FF]" />
                   <span>iPhone &amp; iPad (Safari)</span>
@@ -226,11 +226,11 @@ export function PWAInstallButton({ variant = 'cta' }: PWAInstallButtonProps) {
               </div>
             </div>
 
-            <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div className="px-5 py-3.5 border-t border-slate-100 dark:border-white/10 flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowGuide(false)}
-                className="h-9 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 cursor-pointer"
+                className="h-9 px-4 rounded-2xl bg-[#F2F2F2] dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/10 text-xs font-medium text-slate-800 dark:text-slate-200 cursor-pointer"
               >
                 Done
               </button>

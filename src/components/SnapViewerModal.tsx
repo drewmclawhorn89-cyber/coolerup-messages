@@ -223,7 +223,7 @@ export function SnapViewerModal({
           </div>
 
           {screenshottedToast && (
-            <div className="mt-2 px-3 py-1.5 rounded-xl bg-rose-600/90 text-white text-xs font-medium text-center">
+            <div className="mt-2 px-3 py-1.5 rounded-2xl bg-rose-600/90 text-white text-xs font-medium text-center">
               You took a screenshot! Sender notified.
             </div>
           )}

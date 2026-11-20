@@ -71,31 +71,31 @@ export function NewChatModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
+          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
             {mode === 'group' ? 'New Group Chat' : 'New Message'}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="px-5 pt-3 pb-2">
-          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F4F6F9] dark:bg-[#0B0F17] rounded-xl">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F2F2F2] dark:bg-[#0A0A0A] rounded-2xl">
             <button
               type="button"
               onClick={() => setMode('direct')}
-              className={`h-9 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+              className={`h-9 text-xs font-medium rounded-xl transition-colors cursor-pointer ${
                 mode === 'direct'
-                  ? 'bg-white dark:bg-[#1A2232] text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-white dark:bg-[#232323] text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -104,9 +104,9 @@ export function NewChatModal({
             <button
               type="button"
               onClick={() => setMode('group')}
-              className={`h-9 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+              className={`h-9 text-xs font-medium rounded-xl transition-colors cursor-pointer ${
                 mode === 'group'
-                  ? 'bg-white dark:bg-[#1A2232] text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-white dark:bg-[#232323] text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -123,7 +123,7 @@ export function NewChatModal({
               maxLength={LIMITS.TITLE_MAX}
               onChange={(e) => setGroupTitle(e.target.value)}
               placeholder="Group name (optional)"
-              className="w-full h-10 px-3.5 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#0066FF]"
+              className="w-full h-10 px-3.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/80 dark:border-white/10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-[#0066FF]"
             />
           </div>
         )}
@@ -136,7 +136,7 @@ export function NewChatModal({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search people..."
-              className="w-full h-10 pl-9 pr-3 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none"
+              className="w-full h-10 pl-9 pr-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none"
             />
           </div>
         </div>
@@ -168,7 +168,7 @@ export function NewChatModal({
                       toggleMember(person.uid);
                     }
                   }}
-                  className="w-full px-3 py-2.5 rounded-xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
+                  className="w-full px-3 py-2.5 rounded-2xl hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar
@@ -207,7 +207,7 @@ export function NewChatModal({
         </div>
 
         {mode === 'group' && (
-          <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+          <div className="px-5 py-3.5 border-t border-slate-100 dark:border-white/10 flex items-center justify-between gap-3">
             <span className="text-xs text-slate-500 dark:text-slate-400 font-mono-tabular">
               {selectedUids.length} selected
             </span>
@@ -215,7 +215,7 @@ export function NewChatModal({
               type="button"
               disabled={selectedUids.length === 0 || submitting}
               onClick={handleStartGroup}
-              className="h-10 px-5 rounded-xl bg-[#0066FF] hover:bg-[#0052CC] disabled:opacity-40 text-white text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
+              className="h-10 px-5 rounded-2xl bg-[#0066FF] hover:bg-[#0052CC] disabled:opacity-40 text-white text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
             >
               <Users className="w-4 h-4" />
               <span>{submitting ? 'Creating...' : 'Create Group'}</span>

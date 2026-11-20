@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { AlertTriangle, Camera, CircleDot, Film, MapPin, MessageCircle, X } from 'lucide-react';
 import { CallModal } from './components/CallModal';
+import { GhostLogo } from './components/GhostLogo';
 import { ChatDetailsDrawer } from './components/ChatDetailsDrawer';
 import { ChatWindow } from './components/ChatWindow';
 import { ConversationList } from './components/ConversationList';
@@ -827,13 +828,11 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <div className="h-screen bg-[#F4F6F9] dark:bg-[#0B0F17] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#FFFC00] text-slate-950 font-display font-bold flex items-center justify-center text-sm animate-pulse">
-            CU
-          </div>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Loading CoolerUp Messages...
+      <div className="h-screen bg-[#FFFC00] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <GhostLogo className="w-16 h-16 text-black animate-pulse" />
+          <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-black/70">
+            Loading CoolerUp
           </p>
         </div>
       </div>
@@ -885,7 +884,7 @@ export default function App() {
           setActiveTab(SWIPE_TABS[idx + 1]);
         }
       }}
-      className="h-screen w-screen overflow-hidden bg-white dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row relative"
+      className="h-screen w-screen overflow-hidden bg-white dark:bg-[#0A0A0A] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row relative"
     >
       {/* Google Maps Demo Key Quota Banner */}
       {gmpQuotaBanner && !gmpBannerDismissed && (
@@ -909,7 +908,7 @@ export default function App() {
             type="button"
             onClick={() => setGmpBannerDismissed(true)}
             aria-label="Dismiss map quota notice"
-            className="p-1 rounded-lg hover:bg-black/10 cursor-pointer shrink-0"
+            className="p-1 rounded-xl hover:bg-black/10 cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1214,29 +1213,29 @@ export default function App() {
                   )}
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F9FAFC] dark:bg-[#0B0F17]">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 mb-5 bg-[#FFFC00] flex items-center justify-center">
-                  <img
-                    src="/src/assets/images/coolerup_emblem_1794968388923.jpg"
-                    alt="CoolerUp Messages"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                    className="w-full h-full object-cover"
-                  />
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#FAFAFA] dark:bg-[#0A0A0A]">
+                <div className="w-[88px] h-[88px] rounded-full bg-[#FFFC00] flex items-center justify-center mb-6 snap-glow">
+                  <GhostLogo className="w-12 h-12 text-black" />
                 </div>
-                <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                  CoolerUp Messages
+                <h2 className="font-display text-[30px] leading-none font-extrabold tracking-[-0.05em] text-slate-900 dark:text-white mb-2">
+                  Start snapping
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
-                  Send disappearing Snaps, post 24-hour Stories, explore Snap Map, watch Spotlight videos, or jump into a chat.
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 max-w-sm mb-7 leading-relaxed">
+                  Pick a friend to send a disappearing Snap, post a Story, or jump into a chat.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
                     type="button"
+                    onClick={() => setNewChatModalMode('direct')}
+                    className="h-11 px-6 rounded-full bg-black dark:bg-[#FFFC00] text-white dark:text-black text-sm font-extrabold flex items-center gap-2 snap-press cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>New Chat</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setActiveTab('camera')}
-                    className="h-10 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                    className="h-11 px-6 rounded-full bg-[#FFFC00] hover:bg-[#F2EF00] text-black text-sm font-extrabold flex items-center gap-2 snap-press cursor-pointer"
                   >
                     <Camera className="w-4 h-4" />
                     <span>Open Camera</span>
@@ -1244,17 +1243,10 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setActiveTab('spotlight')}
-                    className="h-10 px-5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                    className="h-11 px-6 rounded-full bg-[#F2F2F2] dark:bg-white/10 hover:bg-[#E5E5E5] dark:hover:bg-white/20 text-slate-900 dark:text-white text-sm font-extrabold flex items-center gap-2 snap-press cursor-pointer"
                   >
-                    <Film className="w-4 h-4 text-[#FFFC00]" />
-                    <span>Watch Spotlight</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewChatModalMode('direct')}
-                    className="h-10 px-5 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-sm font-medium transition-colors cursor-pointer"
-                  >
-                    New Chat
+                    <Film className="w-4 h-4" />
+                    <span>Spotlight</span>
                   </button>
                 </div>
               </div>
@@ -1263,121 +1255,122 @@ export default function App() {
         </>
       )}
 
-      {/* Mobile Snapchat-Style 5-Tab Bottom Navigation Bar: Map · Chat · Camera · Stories · Spotlight */}
+      {/* Snapchat-style mobile tab bar: Map · Chat · Camera · Stories · Spotlight */}
       {showMobileBottomNav && (
         <nav
-          className={`md:hidden fixed bottom-0 left-0 right-0 z-30 h-14 grid grid-cols-5 items-center ${
+          className={`md:hidden fixed bottom-0 left-0 right-0 z-30 ${
             activeTab === 'spotlight'
-              ? 'bg-transparent border-t border-transparent text-white'
-              : 'bg-white/95 dark:bg-[#121824]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800'
+              ? 'bg-black/60 backdrop-blur-xl border-t border-white/10 text-white'
+              : 'bg-white/95 dark:bg-[#0A0A0A]/95 backdrop-blur-xl border-t border-slate-100 dark:border-white/10'
           }`}
           aria-label="Mobile navigation"
         >
-          <button
-            type="button"
-            onClick={() => {
-              setActiveConversationId(null);
-              setActiveTab('map');
-            }}
-            className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-              activeTab === 'map'
-                ? 'text-emerald-500'
-                : activeTab === 'spotlight'
-                ? 'text-white/80 hover:text-white'
-                : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            <MapPin className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Map</span>
-          </button>
+          <div className="h-[62px] grid grid-cols-5 items-center pb-[env(safe-area-inset-bottom)]">
+            {(
+              [
+                { id: 'map' as NavTab, label: 'Map', icon: MapPin, badge: 0 },
+                { id: 'chats' as NavTab, label: 'Chat', icon: MessageCircle, badge: totalUnread },
+                { id: 'stories' as NavTab, label: 'Stories', icon: CircleDot, badge: unviewedStoriesCount },
+                { id: 'spotlight' as NavTab, label: 'Spotlight', icon: Film, badge: 0 },
+              ] as const
+            ).slice(0, 2).map((tab) => {
+              const Icon = tab.icon;
+              const isActive =
+                tab.id === 'chats'
+                  ? activeTab === 'chats' || activeTab === 'archived' || activeTab === 'people'
+                  : activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveConversationId(null);
+                    setActiveTab(tab.id);
+                  }}
+                  className={`relative h-full flex flex-col items-center justify-center gap-1 cursor-pointer snap-press ${
+                    isActive
+                      ? activeTab === 'spotlight'
+                        ? 'text-[#FFFC00]'
+                        : 'text-slate-900 dark:text-white'
+                      : activeTab === 'spotlight'
+                      ? 'text-white/60'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon className="w-[23px] h-[23px]" strokeWidth={isActive ? 2.8 : 2.2} />
+                    {tab.badge > 0 && (
+                      <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3B5C] text-white text-[10px] font-bold font-mono-tabular flex items-center justify-center">
+                        {tab.badge > 99 ? '99+' : tab.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] tracking-[-0.01em] ${isActive ? 'font-extrabold' : 'font-semibold'}`}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveConversationId(null);
-              setActiveTab('chats');
-            }}
-            className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-              activeTab === 'chats' || activeTab === 'archived' || activeTab === 'people'
-                ? 'text-[#00A6FF]'
-                : activeTab === 'spotlight'
-                ? 'text-white/80 hover:text-white'
-                : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            <div className="relative">
-              <MessageCircle className="w-5 h-5" />
-              {totalUnread > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F43F5E] text-white text-[10px] font-semibold font-mono-tabular flex items-center justify-center">
-                  {totalUnread > 99 ? '99+' : totalUnread}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] font-medium">Chat</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveConversationId(null);
-              setActiveTab('camera');
-            }}
-            aria-label="Camera Home"
-            className="h-full flex flex-col items-center justify-center cursor-pointer"
-          >
-            <span
-              className={`w-12 h-12 rounded-full bg-[#FFFC00] text-slate-950 -mt-3 shadow-md ring-4 flex items-center justify-center transition-transform active:scale-95 ${
-                activeTab === 'spotlight'
-                  ? 'ring-black/50'
-                  : activeTab === 'camera'
-                  ? 'ring-[#FFFC00]/40'
-                  : 'ring-white dark:ring-[#121824]'
-              }`}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveConversationId(null);
+                setActiveTab('camera');
+              }}
+              aria-label="Camera"
+              className="h-full flex flex-col items-center justify-center cursor-pointer"
             >
-              <Camera className="w-5 h-5" />
-            </span>
-          </button>
+              <span
+                className={`w-[46px] h-[46px] rounded-full bg-[#FFFC00] text-black flex items-center justify-center snap-press ${
+                  activeTab === 'camera' ? 'snap-glow' : 'shadow-md'
+                }`}
+              >
+                <Camera className="w-[22px] h-[22px]" strokeWidth={2.6} />
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveConversationId(null);
-              setActiveTab('stories');
-            }}
-            className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-              activeTab === 'stories'
-                ? 'text-[#8B5CF6]'
-                : activeTab === 'spotlight'
-                ? 'text-white/80 hover:text-white'
-                : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            <div className="relative">
-              <CircleDot className="w-5 h-5" />
-              {unviewedStoriesCount > 0 && (
-                <span className="absolute -top-1 -right-2 min-w-[14px] h-3.5 px-1 rounded-full bg-[#8B5CF6] text-white text-[9px] font-semibold font-mono-tabular flex items-center justify-center">
-                  {unviewedStoriesCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] font-medium">Stories</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveConversationId(null);
-              setActiveTab('spotlight');
-            }}
-            className={`relative h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-              activeTab === 'spotlight'
-                ? 'text-[#FFFC00]'
-                : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            <Film className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Spotlight</span>
-          </button>
+            {(
+              [
+                { id: 'stories' as NavTab, label: 'Stories', icon: CircleDot, badge: unviewedStoriesCount },
+                { id: 'spotlight' as NavTab, label: 'Spotlight', icon: Film, badge: 0 },
+              ] as const
+            ).map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveConversationId(null);
+                    setActiveTab(tab.id);
+                  }}
+                  className={`relative h-full flex flex-col items-center justify-center gap-1 cursor-pointer snap-press ${
+                    isActive
+                      ? activeTab === 'spotlight'
+                        ? 'text-[#FFFC00]'
+                        : 'text-slate-900 dark:text-white'
+                      : activeTab === 'spotlight'
+                      ? 'text-white/60'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon className="w-[23px] h-[23px]" strokeWidth={isActive ? 2.8 : 2.2} />
+                    {tab.badge > 0 && (
+                      <span className="absolute -top-1 -right-2 min-w-[15px] h-3.5 px-1 rounded-full bg-[#FF3B5C] text-white text-[9px] font-bold font-mono-tabular flex items-center justify-center">
+                        {tab.badge > 9 ? '9+' : tab.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] tracking-[-0.01em] ${isActive ? 'font-extrabold' : 'font-semibold'}`}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </nav>
       )}
 

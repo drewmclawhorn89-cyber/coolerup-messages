@@ -116,17 +116,17 @@ export function MemoriesModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl h-[86vh] rounded-3xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-2xl h-[86vh] rounded-3xl bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#FFFC00] text-slate-950 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center">
               <FolderHeart className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-display text-lg font-bold text-slate-900 dark:text-white">
+              <h2 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                 Memories
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -140,7 +140,7 @@ export function MemoriesModal({
               type="button"
               disabled={uploading}
               onClick={() => fileRef.current?.click()}
-              className="h-9 px-3 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="h-9 px-3 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <ImagePlus className="w-4 h-4" />
               <span>{uploading ? 'Importing...' : 'Import'}</span>
@@ -149,7 +149,7 @@ export function MemoriesModal({
               type="button"
               onClick={onClose}
               aria-label="Close Memories"
-              className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -165,7 +165,7 @@ export function MemoriesModal({
         />
 
         {/* Tabs */}
-        <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800/80 grid grid-cols-3 gap-1.5">
+        <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-white/10/80 grid grid-cols-3 gap-1.5">
           {(
             [
               { id: 'snaps', label: 'Snaps' },
@@ -180,10 +180,10 @@ export function MemoriesModal({
                 setTab(t.id);
                 setPinError('');
               }}
-              className={`h-9 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              className={`h-9 rounded-2xl text-xs font-bold transition-colors cursor-pointer ${
                 tab === t.id
                   ? 'bg-[#FFFC00] text-slate-950'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-600 dark:text-slate-300'
               }`}
             >
               {t.label}
@@ -195,11 +195,11 @@ export function MemoriesModal({
         <div className="flex-1 overflow-y-auto chat-scroll p-4">
           {tab === 'my_eyes_only' && !unlocked ? (
             <div className="max-w-xs mx-auto py-10 text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-slate-900 dark:bg-slate-800 text-[#FFFC00] flex items-center justify-center mx-auto">
+              <div className="w-14 h-14 rounded-2xl bg-black dark:bg-white/10 text-[#FFFC00] flex items-center justify-center mx-auto">
                 <KeyRound className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                   {hasExistingPin ? 'Enter My Eyes Only PIN' : 'Create My Eyes Only PIN'}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -217,11 +217,11 @@ export function MemoriesModal({
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
                   placeholder="Enter PIN (e.g. 1234)"
-                  className="w-full h-11 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-center text-lg font-mono-tabular tracking-widest text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#FFFC00]"
+                  className="w-full h-11 px-4 rounded-2xl bg-[#F2F2F2] dark:bg-white/10 text-center text-lg font-mono-tabular tracking-widest text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#FFFC00]"
                 />
                 <button
                   type="submit"
-                  className="w-full h-11 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold cursor-pointer"
+                  className="w-full h-11 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-sm font-bold cursor-pointer"
                 >
                   {hasExistingPin ? 'Unlock' : 'Set PIN & Open'}
                 </button>
@@ -246,7 +246,7 @@ export function MemoriesModal({
                     onClose();
                     onOpenCamera();
                   }}
-                  className="h-9 px-4 rounded-xl bg-[#FFFC00] text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="h-9 px-4 rounded-full bg-[#FFFC00] text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Camera className="w-3.5 h-3.5" />
                   <span>Take a Snap</span>
@@ -258,7 +258,7 @@ export function MemoriesModal({
               {filteredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-800"
+                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-slate-900 border border-slate-100 dark:border-white/10"
                 >
                   {item.mediaType === 'video' ? (
                     <div
@@ -290,7 +290,7 @@ export function MemoriesModal({
                       type="button"
                       onClick={() => void onToggleLock(item.id, !item.locked)}
                       title={item.locked ? 'Move out of My Eyes Only' : 'Move to My Eyes Only'}
-                      className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer"
+                      className="w-7 h-7 rounded-xl bg-white/15 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer"
                     >
                       {item.locked ? <LockOpen className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                     </button>
@@ -299,7 +299,7 @@ export function MemoriesModal({
                       type="button"
                       onClick={() => void onPostMemoryToStory(item)}
                       title="Post to My Story"
-                      className="h-7 px-2 rounded-lg bg-[#FFFC00] text-slate-950 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                      className="h-7 px-2 rounded-full bg-[#FFFC00] text-slate-950 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Share2 className="w-3 h-3" />
                       <span>Story</span>
@@ -309,7 +309,7 @@ export function MemoriesModal({
                       type="button"
                       onClick={() => void onDelete(item.id)}
                       title="Delete memory"
-                      className="w-7 h-7 rounded-lg bg-rose-500/80 hover:bg-rose-600 text-white flex items-center justify-center cursor-pointer"
+                      className="w-7 h-7 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white flex items-center justify-center cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
