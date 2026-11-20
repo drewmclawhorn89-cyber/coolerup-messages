@@ -762,32 +762,32 @@ export function ChatWindow({
 
   if (loading && !conversation) {
     return (
-      <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0B0F17]">
-        <div className="h-16 px-5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse" />
+      <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0A0A0A]">
+        <div className="h-16 px-5 border-b border-slate-100 dark:border-white/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#EDEDED] dark:bg-white/10 animate-pulse" />
           <div className="space-y-1.5">
-            <div className="w-32 h-3.5 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
-            <div className="w-20 h-2.5 rounded bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
+            <div className="w-32 h-3.5 rounded bg-[#EDEDED] dark:bg-white/10 animate-pulse" />
+            <div className="w-20 h-2.5 rounded bg-[#F2F2F2] dark:bg-white/10/60 animate-pulse" />
           </div>
         </div>
         <div className="flex-1 p-6 space-y-4">
-          <div className="w-48 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
-          <div className="w-64 h-12 rounded-2xl bg-slate-200/70 dark:bg-slate-800 animate-pulse ml-auto" />
+          <div className="w-48 h-10 rounded-2xl bg-[#F2F2F2] dark:bg-white/10/60 animate-pulse" />
+          <div className="w-64 h-12 rounded-2xl bg-slate-200/70 dark:bg-white/10 animate-pulse ml-auto" />
         </div>
       </div>
     );
   }
 
   return (
-    <main className="flex-1 flex flex-col h-full min-w-0 bg-white dark:bg-[#0B0F17] relative">
+    <main className="flex-1 flex flex-col h-full min-w-0 bg-white dark:bg-[#0A0A0A] relative">
       {/* Top Chat Header */}
-      <header className="h-16 px-4 sm:px-5 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between gap-3 shrink-0 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-sm">
+      <header className="h-[70px] px-4 sm:px-5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between gap-3 shrink-0 bg-white/95 dark:bg-[#0A0A0A]/95 backdrop-blur-md">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onBackMobile}
             aria-label="Back to chats"
-            className="md:hidden min-w-[40px] min-h-[40px] -ml-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer"
+            className="md:hidden min-w-[40px] min-h-[40px] -ml-1 rounded-2xl hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -804,7 +804,7 @@ export function ChatWindow({
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-display text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+              <h2 className="font-display text-[16px] sm:text-[17px] font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white truncate">
                 {headerTitle}
               </h2>
               {streak.active && (
@@ -851,7 +851,7 @@ export function ChatWindow({
                 }
                 title="Voice Call"
                 aria-label="Voice Call"
-                className="min-w-[38px] min-h-[38px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                className="min-w-[38px] min-h-[38px] rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-[#F7F7F7] dark:hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Phone className="w-4 h-4" />
               </button>
@@ -867,7 +867,7 @@ export function ChatWindow({
                 }
                 title="Video Call"
                 aria-label="Video Call"
-                className="min-w-[38px] min-h-[38px] rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                className="min-w-[38px] min-h-[38px] rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-[#F7F7F7] dark:hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Video className="w-4 h-4" />
               </button>
@@ -880,7 +880,7 @@ export function ChatWindow({
               onClick={() => void onClearChat(conversationId)}
               title="Clear unsaved chat"
               aria-label="Clear unsaved chat"
-              className="min-w-[38px] min-h-[38px] rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+              className="min-w-[38px] min-h-[38px] rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-[#F7F7F7] dark:hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
             >
               <Eraser className="w-4 h-4" />
             </button>
@@ -894,10 +894,10 @@ export function ChatWindow({
             }}
             title="Search in chat"
             aria-label="Search in chat"
-            className={`min-w-[38px] min-h-[38px] rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+            className={`min-w-[38px] min-h-[38px] rounded-2xl flex items-center justify-center transition-colors cursor-pointer ${
               showSearchBar
                 ? theme.accentBgSoft + ' ' + theme.accentText
-                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-[#F7F7F7] dark:hover:bg-white/5'
             }`}
           >
             <Search className="w-4 h-4" />
@@ -908,10 +908,10 @@ export function ChatWindow({
             onClick={onToggleDetails}
             title="Chat details"
             aria-label="Toggle chat details"
-            className={`min-w-[38px] min-h-[38px] rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+            className={`min-w-[38px] min-h-[38px] rounded-2xl flex items-center justify-center transition-colors cursor-pointer ${
               showDetails
                 ? theme.accentBgSoft + ' ' + theme.accentText
-                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-[#F7F7F7] dark:hover:bg-white/5'
             }`}
           >
             <Info className="w-4 h-4" />
@@ -926,7 +926,7 @@ export function ChatWindow({
       )}
 
       {showSearchBar && (
-        <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-[#F4F6F9] dark:bg-[#121824] flex items-center gap-2 shrink-0">
+        <div className="px-4 py-2.5 border-b border-slate-100 dark:border-white/10 bg-[#F2F2F2] dark:bg-[#141414] flex items-center gap-2 shrink-0">
           <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input
             type="text"
@@ -978,7 +978,7 @@ export function ChatWindow({
               isGroup={conversation?.type === 'group'}
               isSaved={isSaved}
             />
-            <h3 className="font-display text-lg font-bold text-slate-900 dark:text-white mt-4">
+            <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white mt-4">
               {headerTitle}
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-5 leading-relaxed">
@@ -992,7 +992,7 @@ export function ChatWindow({
               <button
                 type="button"
                 onClick={() => onOpenCameraForChat(conversationId)}
-                className="h-10 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-2 cursor-pointer"
+                className="h-10 px-5 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center gap-2 cursor-pointer"
               >
                 <Camera className="w-4 h-4" />
                 <span>Send a Snap</span>
@@ -1079,7 +1079,7 @@ export function ChatWindow({
                     className={`px-3 py-1 rounded-full text-[11px] font-bold ${
                       isScreenshot
                         ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-500 dark:text-slate-400'
                     }`}
                   >
                     {msg.text}
@@ -1130,7 +1130,7 @@ export function ChatWindow({
                             msg.savedBy || []
                           )
                         }
-                        className={`w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center cursor-pointer ${
+                        className={`w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 flex items-center justify-center cursor-pointer ${
                           isSavedInChat
                             ? 'text-amber-500'
                             : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -1146,7 +1146,7 @@ export function ChatWindow({
                             prevId === msg.id ? null : msg.id
                           )
                         }
-                        className="w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
+                        className="w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
                       >
                         <Smile className="w-3.5 h-3.5" />
                       </button>
@@ -1158,7 +1158,7 @@ export function ChatWindow({
                           setReplyTo(msg);
                           textareaRef.current?.focus();
                         }}
-                        className="w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
+                        className="w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
                       >
                         <Reply className="w-3.5 h-3.5" />
                       </button>
@@ -1172,7 +1172,7 @@ export function ChatWindow({
                             setDraftText(msg.text);
                             textareaRef.current?.focus();
                           }}
-                          className="w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
+                          className="w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -1206,7 +1206,7 @@ export function ChatWindow({
 
                     {activeReactionTarget === msg.id && !msg.deleted && (
                       <div
-                        className={`absolute -top-11 z-20 flex items-center gap-1 px-2 py-1 rounded-full bg-white dark:bg-[#1A2232] border border-slate-200 dark:border-slate-700 shadow-lg ${
+                        className={`absolute -top-11 z-20 flex items-center gap-1 px-2 py-1 rounded-full bg-white dark:bg-[#232323] border border-slate-100 dark:border-white/10 shadow-lg ${
                           isOwn ? 'right-0' : 'left-0'
                         }`}
                       >
@@ -1225,7 +1225,7 @@ export function ChatWindow({
                               setActiveReactionTarget(null);
                             }}
                             className={`w-7 h-7 rounded-full text-base flex items-center justify-center hover:scale-125 transition-transform cursor-pointer ${
-                              myReaction === emoji ? 'bg-[#00A6FF]/15' : ''
+                              myReaction === emoji ? 'bg-[#0E8CFF]/15' : ''
                             }`}
                           >
                             {emoji}
@@ -1235,7 +1235,7 @@ export function ChatWindow({
                     )}
 
                     {msg.replyToId && !msg.deleted && (
-                      <div className="mb-1 px-3 py-1.5 rounded-xl text-xs max-w-full bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300">
+                      <div className="mb-1 px-3 py-1.5 rounded-2xl text-xs max-w-full bg-[#F2F2F2] dark:bg-white/10/80 text-slate-600 dark:text-slate-300">
                         <p className="font-semibold text-[11px] text-slate-700 dark:text-slate-200 truncate">
                           Replying to {msg.replyToSenderName}
                         </p>
@@ -1245,7 +1245,7 @@ export function ChatWindow({
 
                     {/* Bubble Body */}
                     {msg.deleted ? (
-                      <div className="px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs italic text-slate-400 dark:text-slate-500">
+                      <div className="px-3.5 py-2 rounded-2xl border border-slate-100 dark:border-white/10 text-xs italic text-slate-400 dark:text-slate-500">
                         {isOwn ? 'You unsent a message' : `${msg.senderName.split(' ')[0]} unsent a message`}
                       </div>
                     ) : isSnap ? (
@@ -1263,8 +1263,8 @@ export function ChatWindow({
                               ? 'bg-[#8B5CF6] hover:bg-[#7C3AED] text-white shadow-xs'
                               : 'bg-[#F43F5E] hover:bg-[#E11D48] text-white shadow-xs'
                             : isVideoSnap
-                            ? 'border border-violet-200 dark:border-violet-900 bg-white dark:bg-[#121824] text-slate-600 dark:text-slate-300'
-                            : 'border border-rose-200 dark:border-rose-900 bg-white dark:bg-[#121824] text-slate-600 dark:text-slate-300'
+                            ? 'border border-violet-200 dark:border-violet-900 bg-white dark:bg-[#141414] text-slate-600 dark:text-slate-300'
+                            : 'border border-rose-200 dark:border-rose-900 bg-white dark:bg-[#141414] text-slate-600 dark:text-slate-300'
                         }`}
                       >
                         {isOwn ? (
@@ -1338,7 +1338,7 @@ export function ChatWindow({
                         className={`px-3.5 py-2.5 ${
                           isOwn
                             ? `${theme.bubbleBg} ${theme.bubbleText} ${ownRounding}`
-                            : `bg-[#F1F3F7] dark:bg-[#192231] text-slate-900 dark:text-slate-100 ${peerRounding}`
+                            : `bg-[#F2F2F2] dark:bg-[#262626] text-slate-900 dark:text-white ${peerRounding}`
                         } ${
                           isSavedInChat
                             ? 'ring-2 ring-amber-400/70 dark:ring-amber-500/60'
@@ -1366,7 +1366,7 @@ export function ChatWindow({
                         onPointerUp={cancelLongPress}
                         onPointerLeave={cancelLongPress}
                         onPointerCancel={cancelLongPress}
-                        className="px-3 py-2 rounded-2xl bg-[#FFFC00] text-slate-950 border border-black/10 shadow-xs flex items-center gap-2.5 select-none"
+                        className="px-3 py-2 rounded-full bg-[#FFFC00] text-slate-950 border border-black/10 shadow-xs flex items-center gap-2.5 select-none"
                       >
                         <Avatar
                           name={senderProfile?.displayName || msg.senderName}
@@ -1420,7 +1420,7 @@ export function ChatWindow({
                         className={`overflow-hidden select-none sm:select-text ${
                           isOwn
                             ? `${theme.bubbleBg} ${theme.bubbleText} ${ownRounding}`
-                            : `bg-[#F1F3F7] dark:bg-[#192231] text-slate-900 dark:text-slate-100 ${peerRounding}`
+                            : `bg-[#F2F2F2] dark:bg-[#262626] text-slate-900 dark:text-white ${peerRounding}`
                         } ${
                           isSavedInChat
                             ? 'ring-2 ring-amber-400/70 dark:ring-amber-500/60'
@@ -1456,7 +1456,7 @@ export function ChatWindow({
                         )}
 
                         {msg.text && (
-                          <p className="px-3.5 py-2 text-[14.5px] leading-relaxed whitespace-pre-wrap break-words">
+                          <p className="px-4 py-2.5 text-[15px] leading-[1.45] whitespace-pre-wrap break-words">
                             {msg.text}
                           </p>
                         )}
@@ -1465,7 +1465,7 @@ export function ChatWindow({
 
                     {/* Mobile Tap Action Strip */}
                     {tappedMsgId === msg.id && !msg.deleted && !isSnap && (
-                      <div className="sm:hidden flex items-center gap-1 mt-1.5 px-2 py-1 rounded-xl bg-white dark:bg-[#1A2232] border border-slate-200 dark:border-slate-700 shadow-xs">
+                      <div className="sm:hidden flex items-center gap-1 mt-1.5 px-2 py-1 rounded-2xl bg-white dark:bg-[#232323] border border-slate-100 dark:border-white/10 shadow-xs">
                         <button
                           type="button"
                           onClick={() => {
@@ -1477,7 +1477,7 @@ export function ChatWindow({
                               msg.savedBy || []
                             );
                           }}
-                          className="h-8 px-2 rounded-lg text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
+                          className="h-8 px-2 rounded-xl text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
                         >
                           <Bookmark className={`w-3.5 h-3.5 ${isSavedInChat ? 'fill-amber-500 text-amber-500' : ''}`} />
                           <span>{isSavedInChat ? 'Saved' : 'Save'}</span>
@@ -1489,7 +1489,7 @@ export function ChatWindow({
                               prevId === msg.id ? null : msg.id
                             )
                           }
-                          className="h-8 px-2 rounded-lg text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
+                          className="h-8 px-2 rounded-xl text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
                         >
                           <Smile className="w-3.5 h-3.5" />
                           <span>React</span>
@@ -1502,7 +1502,7 @@ export function ChatWindow({
                             setTappedMsgId(null);
                             textareaRef.current?.focus();
                           }}
-                          className="h-8 px-2 rounded-lg text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
+                          className="h-8 px-2 rounded-xl text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
                         >
                           <Reply className="w-3.5 h-3.5" />
                           <span>Reply</span>
@@ -1517,7 +1517,7 @@ export function ChatWindow({
                               setTappedMsgId(null);
                               textareaRef.current?.focus();
                             }}
-                            className="h-8 px-2 rounded-lg text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
+                            className="h-8 px-2 rounded-xl text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -1532,7 +1532,7 @@ export function ChatWindow({
                               setTappedMsgId(null);
                               void unsendMessage(conversation, msg.id, isLatest);
                             }}
-                            className="h-8 px-2 rounded-lg text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
+                            className="h-8 px-2 rounded-xl text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>Unsend</span>
@@ -1550,7 +1550,7 @@ export function ChatWindow({
                           }`}
                         >
                           {reactionEntries.length > 0 && (
-                            <div className="flex items-center gap-1 bg-white dark:bg-[#1A2232] border border-slate-200 dark:border-slate-700 rounded-full px-1.5 py-0.5 shadow-2xs">
+                            <div className="flex items-center gap-1 bg-white dark:bg-[#232323] border border-slate-100 dark:border-white/10 rounded-full px-1.5 py-0.5 shadow-2xs">
                               {Object.entries(reactionCounts).map(([emoji, count]) => (
                                 <button
                                   key={emoji}
@@ -1622,7 +1622,7 @@ export function ChatWindow({
                             msg.savedBy || []
                           )
                         }
-                        className={`w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center cursor-pointer ${
+                        className={`w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 flex items-center justify-center cursor-pointer ${
                           isSavedInChat
                             ? 'text-amber-500'
                             : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -1638,7 +1638,7 @@ export function ChatWindow({
                             prevId === msg.id ? null : msg.id
                           )
                         }
-                        className="w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
+                        className="w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
                       >
                         <Smile className="w-3.5 h-3.5" />
                       </button>
@@ -1650,7 +1650,7 @@ export function ChatWindow({
                           setReplyTo(msg);
                           textareaRef.current?.focus();
                         }}
-                        className="w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
+                        className="w-7 h-7 rounded-full hover:bg-[#F7F7F7] dark:hover:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center cursor-pointer"
                       >
                         <Reply className="w-3.5 h-3.5" />
                       </button>
@@ -1670,7 +1670,7 @@ export function ChatWindow({
               avatarSeed={profilesByUid[typingMembers[0].uid]?.avatarSeed}
               size="xs"
             />
-            <div className="px-3.5 py-2.5 rounded-2xl bg-[#F1F3F7] dark:bg-[#192231] flex items-center gap-1.5">
+            <div className="px-3.5 py-2.5 rounded-2xl bg-[#F2F2F2] dark:bg-[#232323] flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 {typingMembers[0].displayName.split(' ')[0]} is typing
               </span>
@@ -1687,16 +1687,16 @@ export function ChatWindow({
           type="button"
           onClick={scrollToBottom}
           aria-label="Scroll to latest messages"
-          className="absolute bottom-24 right-6 z-10 w-10 h-10 rounded-full bg-white dark:bg-[#1A2232] border border-slate-200 dark:border-slate-700 shadow-md text-slate-700 dark:text-slate-200 hover:text-[#00A6FF] flex items-center justify-center transition-colors cursor-pointer"
+          className="absolute bottom-24 right-6 z-10 w-10 h-10 rounded-full bg-white dark:bg-[#232323] border border-slate-100 dark:border-white/10 shadow-md text-slate-700 dark:text-slate-200 hover:text-[#0E8CFF] flex items-center justify-center transition-colors cursor-pointer"
         >
           <ArrowDown className="w-4 h-4" />
         </button>
       )}
 
       {/* Composer Footer */}
-      <footer className="px-4 sm:px-5 py-3 border-t border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#0B0F17] shrink-0">
+      <footer className="px-4 sm:px-5 py-3 border-t border-slate-100 dark:border-white/10 bg-white dark:bg-[#0A0A0A] shrink-0">
         {(replyTo || editingMsg) && (
-          <div className="mb-2.5 px-3.5 py-2 rounded-xl bg-[#F4F6F9] dark:bg-[#121824] flex items-center justify-between gap-3">
+          <div className="mb-2.5 px-3.5 py-2 rounded-2xl bg-[#F2F2F2] dark:bg-[#141414] flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                 {editingMsg
@@ -1717,7 +1717,7 @@ export function ChatWindow({
                 setDraftText('');
               }}
               aria-label="Cancel reply or edit"
-              className="w-7 h-7 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer shrink-0"
+              className="w-7 h-7 rounded-xl hover:bg-slate-200 dark:hover:bg-white/5 text-slate-500 flex items-center justify-center cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1731,13 +1731,13 @@ export function ChatWindow({
                 src={pendingImage}
                 controls
                 playsInline
-                className="h-28 w-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-black"
+                className="h-28 w-auto rounded-2xl border border-slate-100 dark:border-white/10 bg-black"
               />
             ) : (
               <img
                 src={pendingImage}
                 alt="Pending attachment"
-                className="h-24 w-auto rounded-xl border border-slate-200 dark:border-slate-700 object-cover"
+                className="h-24 w-auto rounded-2xl border border-slate-100 dark:border-white/10 object-cover"
               />
             )}
             <button
@@ -1759,14 +1759,14 @@ export function ChatWindow({
         )}
 
         {showEmojiPicker && (
-          <div className="mb-2.5 p-2.5 rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 shadow-lg max-w-xs">
-            <div className="grid grid-cols-3 gap-1 p-1 mb-2 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17]">
+          <div className="mb-2.5 p-2.5 rounded-2xl bg-white dark:bg-[#141414] border border-slate-100 dark:border-white/10 shadow-lg max-w-xs">
+            <div className="grid grid-cols-3 gap-1 p-1 mb-2 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A]">
               <button
                 type="button"
                 onClick={() => setPickerTab('emoji')}
-                className={`h-7 text-xs font-semibold rounded-lg cursor-pointer ${
+                className={`h-7 text-xs font-semibold rounded-xl cursor-pointer ${
                   pickerTab === 'emoji'
-                    ? 'bg-white dark:bg-[#1A2232] text-slate-900 dark:text-white shadow-xs'
+                    ? 'bg-white dark:bg-[#232323] text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-500'
                 }`}
               >
@@ -1775,7 +1775,7 @@ export function ChatWindow({
               <button
                 type="button"
                 onClick={() => setPickerTab('stickers')}
-                className={`h-7 text-xs font-semibold rounded-lg cursor-pointer ${
+                className={`h-7 text-xs font-semibold rounded-xl cursor-pointer ${
                   pickerTab === 'stickers'
                     ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
                     : 'text-slate-500'
@@ -1786,7 +1786,7 @@ export function ChatWindow({
               <button
                 type="button"
                 onClick={() => setPickerTab('bitmoji')}
-                className={`h-7 text-xs font-semibold rounded-lg cursor-pointer ${
+                className={`h-7 text-xs font-semibold rounded-xl cursor-pointer ${
                   pickerTab === 'bitmoji'
                     ? 'bg-[#FFFC00] text-slate-950 shadow-xs'
                     : 'text-slate-500'
@@ -1802,7 +1802,7 @@ export function ChatWindow({
                     key={item.id}
                     type="button"
                     onClick={() => void handleSendSticker(`${item.emoji} ${item.label}`)}
-                    className="px-2.5 py-2 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/45 border border-[#FFFC00]/50 flex items-center gap-2 text-left cursor-pointer"
+                    className="px-2.5 py-2 rounded-full bg-[#FFFC00]/20 hover:bg-[#FFFC00]/45 border border-[#FFFC00]/50 flex items-center gap-2 text-left cursor-pointer"
                   >
                     <Avatar
                       name={currentUser.displayName}
@@ -1830,7 +1830,7 @@ export function ChatWindow({
                         textareaRef.current?.focus();
                       }
                     }}
-                    className="h-9 rounded-lg hover:bg-[#F4F6F9] dark:hover:bg-slate-800 text-lg flex items-center justify-center cursor-pointer"
+                    className="h-9 rounded-xl hover:bg-[#F2F2F2] dark:hover:bg-white/5 text-lg flex items-center justify-center cursor-pointer"
                   >
                     {item}
                   </button>
@@ -1856,7 +1856,7 @@ export function ChatWindow({
                 onClick={() => onOpenCameraForChat(conversationId)}
                 title="Send disappearing Snap"
                 aria-label="Send disappearing Snap"
-                className="min-w-[40px] min-h-[40px] rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="min-w-[40px] min-h-[40px] rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black flex items-center justify-center transition-colors cursor-pointer shrink-0"
               >
                 <Camera className="w-4 h-4" />
               </button>
@@ -1866,7 +1866,7 @@ export function ChatWindow({
                 onClick={() => fileInputRef.current?.click()}
                 title="Send photo or video"
                 aria-label="Send photo or video"
-                className={`min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center transition-colors cursor-pointer shrink-0 ${theme.accentText} hover:bg-[#F4F6F9] dark:hover:bg-slate-800`}
+                className={`min-w-[40px] min-h-[40px] rounded-2xl flex items-center justify-center transition-colors cursor-pointer shrink-0 ${theme.accentText} hover:bg-[#F2F2F2] dark:hover:bg-white/5`}
               >
                 <ImageIcon className="w-5 h-5" />
               </button>
@@ -1876,10 +1876,10 @@ export function ChatWindow({
                 onClick={() => void handleToggleVoiceNote()}
                 title={isRecordingVoice ? 'Stop & send voice note' : 'Record voice note'}
                 aria-label={isRecordingVoice ? 'Stop & send voice note' : 'Record voice note'}
-                className={`min-w-[40px] min-h-[40px] rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0 ${
+                className={`min-w-[40px] min-h-[40px] rounded-2xl flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0 ${
                   isRecordingVoice
                     ? 'bg-rose-600 text-white px-2.5 animate-pulse'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-[#F4F6F9] dark:hover:bg-slate-800'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-[#F2F2F2] dark:hover:bg-white/5'
                 }`}
               >
                 <Mic className="w-4 h-4" />
@@ -1892,7 +1892,7 @@ export function ChatWindow({
             </>
           )}
 
-          <div className="flex-1 flex items-end gap-2 bg-[#F4F6F9] dark:bg-[#121824] border border-slate-200/70 dark:border-slate-800 rounded-2xl px-3.5 py-2 focus-within:border-[#00A6FF]/50">
+          <div className="flex-1 flex items-end gap-2 bg-[#F2F2F2] dark:bg-white/10 border-2 border-transparent rounded-full px-4 py-2 focus-within:border-[#FFFC00] transition-colors">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -1905,15 +1905,15 @@ export function ChatWindow({
                   void handleSend();
                 }
               }}
-              placeholder={isRecordingVoice ? 'Recording voice note...' : 'Send a chat...'}
-              className="flex-1 bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none resize-none max-h-32 leading-6"
+              placeholder={isRecordingVoice ? 'Recording voice note...' : 'Send a chat'}
+              className="flex-1 bg-transparent text-[15px] font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none resize-none max-h-32 leading-6"
             />
             <button
               type="button"
               onClick={() => setShowEmojiPicker((v) => !v)}
               title="Emoji & Stickers"
               aria-label="Emoji & Stickers"
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+              className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
                 showEmojiPicker
                   ? theme.accentText
                   : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -1930,7 +1930,7 @@ export function ChatWindow({
               onClick={handleSend}
               title="Send message"
               aria-label="Send message"
-              className={`min-w-[42px] min-h-[42px] rounded-xl ${theme.bubbleBg} ${theme.bubbleText} hover:opacity-95 disabled:opacity-50 flex items-center justify-center transition-opacity cursor-pointer shrink-0`}
+              className={`min-w-[42px] min-h-[42px] rounded-full ${theme.bubbleBg} ${theme.bubbleText} hover:opacity-90 disabled:opacity-50 flex items-center justify-center snap-press cursor-pointer shrink-0 shadow-sm`}
             >
               <Send className="w-4 h-4" />
             </button>
@@ -1941,7 +1941,7 @@ export function ChatWindow({
               onClick={handleSendQuickEmoji}
               title={`Send ${conversation?.quickEmoji || '👻'}`}
               aria-label="Send quick reaction"
-              className="min-w-[42px] min-h-[42px] rounded-xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800 text-xl flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              className="min-w-[42px] min-h-[42px] rounded-full bg-[#FFFC00] hover:bg-[#F2EF00] text-xl flex items-center justify-center snap-press cursor-pointer shrink-0"
             >
               {conversation?.quickEmoji || '👻'}
             </button>

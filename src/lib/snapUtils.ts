@@ -10,7 +10,7 @@ export interface BitmojiAvatarConfig {
   expression: 'smile' | 'wink' | 'cool';
 }
 
-export const BITMOJI_BG_PALETTE = ['#FFFC00', '#00A6FF', '#8B5CF6', '#10B981', '#F43F5E', '#F97316'];
+export const BITMOJI_BG_PALETTE = ['#FFFC00', '#0E8CFF', '#8B5CF6', '#10B981', '#F43F5E', '#F97316'];
 export const BITMOJI_SKIN_TONES = ['#FDE2C8', '#F2C19E', '#D99B72', '#A66D49', '#6B4226'];
 export const BITMOJI_HAIR_COLORS = ['#1E293B', '#7C2D12', '#D97706', '#94A3B8', '#EC4899'];
 

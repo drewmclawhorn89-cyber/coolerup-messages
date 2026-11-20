@@ -65,7 +65,7 @@ const LENSES: LensOption[] = [
   { id: 'cartoon', label: 'Cartoon', badge: '🎨', cssFilter: 'saturate(1.85) contrast(1.35) brightness(1.04)', overlayType: 'cartoon' },
 ];
 
-const PEN_COLORS = ['#FFFFFF', '#FFFC00', '#00A6FF', '#F43F5E', '#10B981'];
+const PEN_COLORS = ['#FFFFFF', '#FFFC00', '#0E8CFF', '#F43F5E', '#10B981'];
 const STICKER_OPTIONS = ['🔥', '😂', '❤️', '👻', '⚡', '🎉', '✨', '😎', '💯', '☕', '🐶', '🌸', '🌈', '🥳'];
 const GIF_BADGE_STICKERS = ['🔥 VIBES', '😂 LMAO', '✨ SLAY', '⚡ SNAP!', '🎉 PARTY', '💖 LOVE U'];
 const VIEW_TIMER_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0] as const; // 0 => infinite
@@ -863,8 +863,8 @@ export function SnapCameraModal({
       <div
         className={
           embedded
-            ? 'relative w-full h-full bg-[#0B0F17] flex flex-col overflow-hidden'
-            : 'relative w-full h-full sm:max-w-[440px] sm:max-h-[840px] sm:rounded-3xl overflow-hidden bg-[#0B0F17] border border-slate-800 flex flex-col'
+            ? 'relative w-full h-full bg-[#0A0A0A] flex flex-col overflow-hidden'
+            : 'relative w-full h-full sm:max-w-[440px] sm:max-h-[840px] sm:rounded-3xl overflow-hidden bg-[#0A0A0A] border border-slate-800 flex flex-col'
         }
       >
         {flashPulse && <div className="absolute inset-0 z-40 bg-white pointer-events-none" />}
@@ -1219,7 +1219,7 @@ export function SnapCameraModal({
                     key={emoji}
                     type="button"
                     onClick={() => handleAddSticker(emoji, 'emoji')}
-                    className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/25 text-2xl flex items-center justify-center cursor-pointer"
+                    className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/25 text-2xl flex items-center justify-center cursor-pointer"
                   >
                     {emoji}
                   </button>
@@ -1234,7 +1234,7 @@ export function SnapCameraModal({
                     key={badge}
                     type="button"
                     onClick={() => handleAddSticker(badge, 'badge')}
-                    className="h-10 rounded-xl bg-gradient-to-r from-[#FFFC00] to-amber-300 text-slate-950 text-xs font-extrabold tracking-wide flex items-center justify-center cursor-pointer"
+                    className="h-10 rounded-2xl bg-gradient-to-r from-[#FFFC00] to-amber-300 text-slate-950 text-xs font-extrabold tracking-wide flex items-center justify-center cursor-pointer"
                   >
                     {badge}
                   </button>
@@ -1247,7 +1247,7 @@ export function SnapCameraModal({
                 <button
                   type="button"
                   onClick={addLocationSticker}
-                  className="h-10 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="h-10 px-3 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <MapPin className="w-3.5 h-3.5 text-[#FFFC00]" />
                   <span>Location Sticker</span>
@@ -1255,7 +1255,7 @@ export function SnapCameraModal({
                 <button
                   type="button"
                   onClick={addTimeWeatherSticker}
-                  className="h-10 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="h-10 px-3 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <SunMedium className="w-3.5 h-3.5 text-[#FFFC00]" />
                   <span>Time &amp; Weather</span>
@@ -1291,7 +1291,7 @@ export function SnapCameraModal({
                     setSelectedSoundTrackId(track.id);
                     setPreviewMuted(false);
                   }}
-                  className={`w-full px-3 py-2 rounded-xl flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full px-3 py-2 rounded-2xl flex items-center justify-between text-left cursor-pointer ${
                     selected ? 'bg-[#FFFC00] text-slate-950' : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
@@ -1360,7 +1360,7 @@ export function SnapCameraModal({
               )}
               {selectedLens.overlayType === 'cartoon' && (
                 <div className="pointer-events-none absolute inset-3 border-4 border-[#FFFC00] rounded-3xl">
-                  <span className="inline-block m-3 px-2.5 py-1 rounded-lg bg-[#FFFC00] text-slate-950 font-black text-sm tracking-wider">
+                  <span className="inline-block m-3 px-2.5 py-1 rounded-full bg-[#FFFC00] text-slate-950 font-black text-sm tracking-wider">
                     POW!
                   </span>
                 </div>
@@ -1381,7 +1381,7 @@ export function SnapCameraModal({
               )}
               {cameraError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950/90">
-                  <div className="w-14 h-14 rounded-2xl bg-[#FFFC00] text-slate-950 flex items-center justify-center mb-4">
+                  <div className="w-14 h-14 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center mb-4">
                     <Camera className="w-7 h-7" />
                   </div>
                   <p className="text-sm font-medium text-white mb-2">Snap Studio</p>
@@ -1393,7 +1393,7 @@ export function SnapCameraModal({
                       unlockVideoTranscodeAudio();
                       fileInputRef.current?.click();
                     }}
-                    className="h-11 px-5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-sm font-bold flex items-center gap-2 cursor-pointer"
+                    className="h-11 px-5 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-sm font-bold flex items-center gap-2 cursor-pointer"
                   >
                     <ImagePlus className="w-4 h-4" />
                     <span>Upload Photo or Video</span>
@@ -1458,7 +1458,7 @@ export function SnapCameraModal({
                       className={
                         st.kind === 'emoji'
                           ? 'absolute z-10 text-4xl select-none cursor-grab active:cursor-grabbing'
-                          : 'absolute z-10 px-3 py-1 rounded-xl bg-slate-950/85 text-[#FFFC00] text-xs font-extrabold shadow-lg border border-white/15 select-none cursor-grab active:cursor-grabbing whitespace-nowrap'
+                          : 'absolute z-10 px-3 py-1 rounded-2xl bg-slate-950/85 text-[#FFFC00] text-xs font-extrabold shadow-lg border border-white/15 select-none cursor-grab active:cursor-grabbing whitespace-nowrap'
                       }
                     >
                       {st.content}
@@ -1606,7 +1606,7 @@ export function SnapCameraModal({
                   disabled={savingMemory || savedToMemoryFeedback}
                   onClick={handleSaveMemoryClick}
                   title="Save to Memories"
-                  className={`h-11 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  className={`h-11 px-3 rounded-2xl text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer ${
                     savedToMemoryFeedback
                       ? 'bg-emerald-500/20 text-emerald-300'
                       : 'bg-white/12 hover:bg-white/20 text-white'
@@ -1649,7 +1649,7 @@ export function SnapCameraModal({
                     setSending(false);
                   }
                 }}
-                className="h-11 px-3 rounded-xl bg-white/12 hover:bg-white/20 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
+                className="h-11 px-3 rounded-2xl bg-white/12 hover:bg-white/20 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
                 <span>{sending && postToStory ? 'Posting...' : '+ Story'}</span>
               </button>
@@ -1690,7 +1690,7 @@ export function SnapCameraModal({
                       setSending(false);
                     }
                   }}
-                  className="h-11 px-3 rounded-xl bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 disabled:opacity-50 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="h-11 px-3 rounded-full bg-[#FFFC00]/20 hover:bg-[#FFFC00]/30 disabled:opacity-50 text-[#FFFC00] text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Film className="w-3.5 h-3.5" />
                   <span>{sending && postToSpotlight ? 'Posting...' : '+ Spotlight'}</span>
@@ -1704,7 +1704,7 @@ export function SnapCameraModal({
                   setSendError('');
                   setShowSendPicker(true);
                 }}
-                className="h-11 px-4 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold flex items-center gap-2 shrink-0 cursor-pointer ml-auto"
+                className="h-11 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] disabled:opacity-50 text-slate-950 text-sm font-bold flex items-center gap-2 shrink-0 cursor-pointer ml-auto"
               >
                 <span>Send To</span>
                 <Send className="w-4 h-4" />
@@ -1712,9 +1712,9 @@ export function SnapCameraModal({
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 z-30 bg-white dark:bg-[#121824] flex flex-col">
-            <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+          <div className="absolute inset-0 z-30 bg-white dark:bg-[#141414] flex flex-col">
+            <div className="px-4 py-3.5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
+              <h3 className="font-display text-lg font-extrabold tracking-[-0.03em] text-slate-900 dark:text-white">
                 Send Snap To
               </h3>
               <button
@@ -1731,7 +1731,7 @@ export function SnapCameraModal({
                 type="button"
                 onClick={() => setPostToStory((v) => !v)}
                 className={`w-full px-3 py-2.5 rounded-2xl flex items-center justify-between border transition-colors cursor-pointer ${
-                  postToStory ? 'border-[#8B5CF6] bg-[#8B5CF6]/10' : 'border-slate-200 dark:border-slate-800'
+                  postToStory ? 'border-[#8B5CF6] bg-[#8B5CF6]/10' : 'border-slate-100 dark:border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1760,7 +1760,7 @@ export function SnapCameraModal({
                   type="button"
                   onClick={() => setPostToSpotlight((v) => !v)}
                   className={`w-full px-3 py-2.5 rounded-2xl flex items-center justify-between border transition-colors cursor-pointer ${
-                    postToSpotlight ? 'border-[#FFFC00] bg-[#FFFC00]/15' : 'border-slate-200 dark:border-slate-800'
+                    postToSpotlight ? 'border-[#FFFC00] bg-[#FFFC00]/15' : 'border-slate-100 dark:border-white/10'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -1801,7 +1801,7 @@ export function SnapCameraModal({
                           : [...prev, chat.conversationId]
                       )
                     }
-                    className="w-full px-3 py-2 rounded-xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 flex items-center justify-between gap-3 cursor-pointer"
+                    className="w-full px-3 py-2 rounded-2xl hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 flex items-center justify-between gap-3 cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar
@@ -1818,7 +1818,7 @@ export function SnapCameraModal({
                     <span
                       className={`w-5 h-5 rounded-full flex items-center justify-center border shrink-0 ${
                         isSelected
-                          ? 'bg-[#00A6FF] border-[#00A6FF] text-white'
+                          ? 'bg-[#0E8CFF] border-[#0E8CFF] text-white'
                           : 'border-slate-300 dark:border-slate-600'
                       }`}
                     >
@@ -1844,7 +1844,7 @@ export function SnapCameraModal({
                               : [...prev, peer.uid]
                           )
                         }
-                        className="w-full px-3 py-2 rounded-xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 flex items-center justify-between gap-3 cursor-pointer"
+                        className="w-full px-3 py-2 rounded-2xl hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 flex items-center justify-between gap-3 cursor-pointer"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar
@@ -1860,7 +1860,7 @@ export function SnapCameraModal({
                         <span
                           className={`w-5 h-5 rounded-full flex items-center justify-center border shrink-0 ${
                             isSelected
-                              ? 'bg-[#00A6FF] border-[#00A6FF] text-white'
+                              ? 'bg-[#0E8CFF] border-[#0E8CFF] text-white'
                               : 'border-slate-300 dark:border-slate-600'
                           }`}
                         >
@@ -1875,12 +1875,12 @@ export function SnapCameraModal({
 
             {sendError && <p className="px-4 py-2 text-xs text-rose-600 dark:text-rose-400">{sendError}</p>}
 
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="p-4 border-t border-slate-100 dark:border-white/10">
               <button
                 type="button"
                 disabled={sending}
                 onClick={handleConfirmSend}
-                className="w-full h-11 rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-11 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{sending ? 'Sending Snap...' : 'Send Snap'}</span>
                 <Send className="w-4 h-4" />

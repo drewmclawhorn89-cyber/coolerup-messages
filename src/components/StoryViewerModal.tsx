@@ -370,7 +370,7 @@ export function StoryViewerModal({
                 type="button"
                 disabled={!replyText.trim() || sendingReply}
                 onClick={handleSendReply}
-                className="w-10 h-10 rounded-full bg-[#00A6FF] hover:bg-[#0090E0] disabled:opacity-40 text-white flex items-center justify-center cursor-pointer shrink-0"
+                className="w-10 h-10 rounded-full bg-[#0E8CFF] hover:bg-[#0B7BE0] disabled:opacity-40 text-white flex items-center justify-center cursor-pointer shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -380,8 +380,8 @@ export function StoryViewerModal({
 
         {/* Own Story Viewers Sheet */}
         {isOwnStory && showViewersSheet && (
-          <div className="absolute inset-x-0 bottom-0 z-30 max-h-[55%] bg-white dark:bg-[#121824] rounded-t-3xl border-t border-slate-200 dark:border-slate-800 flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="absolute inset-x-0 bottom-0 z-30 max-h-[55%] bg-white dark:bg-[#141414] rounded-t-3xl border-t border-slate-100 dark:border-white/10 flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900 dark:text-white">
                 Story Viewers · {viewers.length}
               </span>

@@ -145,9 +145,9 @@ export function ConversationList({
   }, [chats, activeTab, filter, searchQuery, profilesByUid]);
 
   return (
-    <section className="flex flex-col h-full w-full md:w-[344px] lg:w-[364px] shrink-0 bg-white dark:bg-[#121824] border-r border-slate-200 dark:border-slate-800/80">
+    <section className="flex flex-col h-full w-full md:w-[360px] lg:w-[384px] shrink-0 bg-white dark:bg-[#0F0F0F] border-r border-slate-100 dark:border-white/10">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-2 shrink-0">
+      <div className="px-4 pt-5 pb-2 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
@@ -163,7 +163,7 @@ export function ConversationList({
               isOnline={currentUser.isOnline}
             />
           </button>
-          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 dark:text-white truncate">
+          <h1 className="font-display text-[28px] leading-none font-extrabold tracking-[-0.05em] text-slate-900 dark:text-white truncate">
             {activeTab === 'archived' ? 'Archived' : 'Chat'}
           </h1>
         </div>
@@ -177,7 +177,7 @@ export function ConversationList({
             onClick={() => onOpenCameraForChat()}
             title="Open Snap Camera"
             aria-label="Open Snap Camera"
-            className="h-10 px-3.5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-transform active:scale-95 cursor-pointer"
+            className="h-10 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F2EF00] text-black font-extrabold text-xs flex items-center gap-1.5 snap-press cursor-pointer"
           >
             <Camera className="w-4 h-4" />
             <span>Snap</span>
@@ -187,7 +187,7 @@ export function ConversationList({
             onClick={() => onOpenNewChat('group')}
             title="New group chat"
             aria-label="New group chat"
-            className="min-w-[40px] min-h-[40px] rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+            className="min-w-[40px] min-h-[40px] rounded-full bg-[#F2F2F2] dark:bg-white/10 hover:bg-[#E5E5E5] dark:hover:bg-white/20 text-slate-900 dark:text-white flex items-center justify-center snap-press cursor-pointer"
           >
             <Users className="w-4 h-4" />
           </button>
@@ -196,7 +196,7 @@ export function ConversationList({
             onClick={() => onOpenNewChat('direct')}
             title="New chat"
             aria-label="New chat"
-            className="min-w-[40px] min-h-[40px] rounded-xl bg-[#00A6FF] hover:bg-[#0090E0] text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="min-w-[40px] min-h-[40px] rounded-full bg-black dark:bg-white text-white dark:text-black hover:opacity-80 flex items-center justify-center snap-press cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
           </button>
@@ -206,13 +206,13 @@ export function ConversationList({
       {/* Search Bar */}
       <div className="px-4 pb-3 shrink-0">
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-[18px] h-[18px] text-slate-500 dark:text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={2.4} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search Snaps & Chats..."
-            className="w-full h-10 pl-9 pr-8 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-transparent focus:border-[#00A6FF]/40 focus:bg-white dark:focus:bg-[#0D131F] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors"
+            placeholder="Search friends & chats"
+            className="w-full h-11 pl-11 pr-9 rounded-full bg-[#F2F2F2] dark:bg-white/10 border-2 border-transparent focus:border-[#FFFC00] text-[14px] font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none transition-colors"
           />
           {searchQuery && (
             <button
@@ -230,7 +230,7 @@ export function ConversationList({
       {/* Filter Tabs */}
       {activeTab !== 'archived' && (
         <div className="px-4 pb-3 shrink-0">
-          <div className="grid grid-cols-4 gap-1 p-1 bg-[#F4F6F9] dark:bg-[#0B0F17] rounded-xl">
+          <div className="flex items-center gap-2 overflow-x-auto snap-no-scrollbar">
             {(
               [
                 { id: 'all', label: 'All' },
@@ -243,10 +243,10 @@ export function ConversationList({
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id)}
-                className={`h-8 text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                className={`h-8 px-3.5 text-xs font-bold rounded-full transition-colors cursor-pointer whitespace-nowrap snap-press ${
                   filter === tab.id
-                    ? 'bg-white dark:bg-[#1A2232] text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    ? 'bg-black dark:bg-[#FFFC00] text-white dark:text-black'
+                    : 'bg-[#F2F2F2] dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-[#E5E5E5] dark:hover:bg-white/20'
                 }`}
               >
                 {tab.label}
@@ -258,7 +258,7 @@ export function ConversationList({
 
       {/* Stories Section: My Story at top + Friends Stories below */}
       {activeTab === 'chats' && !searchQuery && (
-        <div className="px-4 pb-3 border-b border-slate-100 dark:border-slate-800/80 shrink-0 space-y-2.5">
+        <div className="px-4 pb-3 border-b border-slate-100 dark:border-white/10/80 shrink-0 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
@@ -267,13 +267,11 @@ export function ConversationList({
                   ? onViewAuthorStories(currentUser.uid)
                   : onOpenCameraForChat()
               }
-              className="flex-1 min-w-0 flex items-center gap-2.5 p-1.5 -ml-1.5 rounded-xl hover:bg-[#F4F6F9] dark:hover:bg-slate-800/60 text-left cursor-pointer"
+              className="flex-1 min-w-0 flex items-center gap-2.5 p-1.5 -ml-1.5 rounded-2xl hover:bg-[#F2F2F2] dark:hover:bg-white/5/60 text-left cursor-pointer"
             >
               <div
-                className={`relative p-0.5 rounded-full shrink-0 ${
-                  storyRings.myCount > 0
-                    ? 'ring-2 ring-[#8B5CF6]'
-                    : 'ring-1 ring-slate-300 dark:ring-slate-700'
+                className={`relative p-[2.5px] rounded-full shrink-0 ${
+                  storyRings.myCount > 0 ? 'snap-story-ring' : 'snap-story-ring-seen'
                 }`}
               >
                 <Avatar
@@ -283,7 +281,7 @@ export function ConversationList({
                   size="sm"
                 />
                 {storyRings.myCount === 0 && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center ring-2 ring-white dark:ring-[#121824]">
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center ring-2 ring-white dark:ring-[#141414]">
                     <Plus className="w-2.5 h-2.5" />
                   </span>
                 )}
@@ -304,7 +302,7 @@ export function ConversationList({
               type="button"
               onClick={() => onOpenCameraForChat()}
               title="Add to My Story"
-              className="h-8 px-2.5 rounded-lg bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+              className="h-8 px-3 rounded-full bg-[#FFFC00] hover:bg-[#F2EF00] text-black text-[11px] font-extrabold flex items-center gap-1 shrink-0 snap-press cursor-pointer"
             >
               <Plus className="w-3 h-3" />
               <span>Add</span>
@@ -321,10 +319,8 @@ export function ConversationList({
                   className="flex flex-col items-center gap-1 w-14 shrink-0 group cursor-pointer"
                 >
                   <div
-                    className={`p-0.5 rounded-full ${
-                      friend.hasUnviewed
-                        ? 'ring-2 ring-[#8B5CF6]'
-                        : 'ring-1 ring-slate-300 dark:ring-slate-700'
+                    className={`p-[2.5px] rounded-full ${
+                      friend.hasUnviewed ? 'snap-story-ring' : 'snap-story-ring-seen'
                     }`}
                   >
                     <Avatar
@@ -334,7 +330,7 @@ export function ConversationList({
                       size="md"
                     />
                   </div>
-                  <span className="text-[11px] text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 truncate w-full text-center">
+                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate w-full text-center">
                     {friend.name.split(' ')[0]}
                   </span>
                 </button>
@@ -346,7 +342,7 @@ export function ConversationList({
 
       {/* Best Friends Strip */}
       {activeTab === 'chats' && !searchQuery && bestFriends.length > 0 && (
-        <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
+        <div className="px-4 py-2 border-b border-slate-100 dark:border-white/10/80 shrink-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
             Best Friends
           </p>
@@ -359,7 +355,7 @@ export function ConversationList({
                   key={bf.conversationId}
                   type="button"
                   onClick={() => onSelectChat(bf.conversationId)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#F4F6F9] dark:bg-[#0B0F17] hover:bg-slate-200/70 dark:hover:bg-slate-800 shrink-0 cursor-pointer transition-colors"
+                  className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-[#F2F2F2] dark:bg-white/10 hover:bg-[#E5E5E5] dark:hover:bg-white/20 shrink-0 cursor-pointer transition-colors snap-press"
                 >
                   <Avatar
                     name={peer?.displayName || bf.title}
@@ -405,7 +401,7 @@ export function ConversationList({
               <button
                 type="button"
                 onClick={() => onOpenCameraForChat()}
-                className="h-9 px-4 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold transition-colors cursor-pointer"
+                className="h-9 px-4 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold transition-colors cursor-pointer"
               >
                 Send a Snap
               </button>
@@ -485,8 +481,8 @@ export function ConversationList({
 
               if (hasUnread) {
                 return (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00A6FF] truncate">
-                    <MessageSquare className="w-3 h-3 fill-[#00A6FF] text-[#00A6FF] shrink-0" />
+                  <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-slate-900 dark:text-white truncate">
+                    <MessageSquare className="w-3 h-3 fill-[#0E8CFF] text-[#0E8CFF] shrink-0" />
                     <span className="truncate">
                       {chat.lastMessageText || 'New Chat'}
                     </span>
@@ -497,7 +493,7 @@ export function ConversationList({
               return (
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
                   {isSelfLast && !isSaved && chat.lastMessageKind !== 'system' && (
-                    <Send className="w-3 h-3 shrink-0 text-[#00A6FF]" />
+                    <Send className="w-3 h-3 shrink-0 text-[#0E8CFF]" />
                   )}
                   <span className="truncate">
                     {isSelfLast && chat.lastMessageText && !isSaved ? 'You: ' : ''}
@@ -534,10 +530,10 @@ export function ConversationList({
                     onOpenCameraForChat(chat.conversationId);
                   }
                 }}
-                className={`group w-full min-h-[68px] px-2.5 py-2 rounded-2xl flex items-center gap-2 transition-colors touch-pan-y ${
+                className={`group w-full min-h-[76px] px-2.5 py-2 rounded-2xl flex items-center gap-2 transition-colors touch-pan-y ${
                   isSelected
-                    ? 'bg-[#00A6FF]/10 dark:bg-[#0EA5E9]/20'
-                    : 'hover:bg-[#F4F6F9] dark:hover:bg-slate-800/50'
+                    ? 'bg-[#FFFDE7] dark:bg-white/10'
+                    : 'hover:bg-[#F7F7F7] dark:hover:bg-white/5'
                 }`}
               >
                 <button
@@ -558,13 +554,13 @@ export function ConversationList({
                     {showYellowSnapDot && (
                       <span
                         title="New Snap"
-                        className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#FFFC00] ring-2 ring-white dark:ring-[#121824] shadow-xs"
+                        className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#FFFC00] ring-2 ring-white dark:ring-[#141414] shadow-xs"
                       />
                     )}
                     {!showYellowSnapDot && showBlueChatDot && (
                       <span
                         title="New Chat"
-                        className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#00A6FF] ring-2 ring-white dark:ring-[#121824]"
+                        className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#0E8CFF] ring-2 ring-white dark:ring-[#141414]"
                       />
                     )}
                   </div>
@@ -573,10 +569,10 @@ export function ConversationList({
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
-                          className={`text-sm truncate ${
+                          className={`text-[15px] truncate tracking-[-0.02em] ${
                             hasUnread
-                              ? 'font-bold text-slate-900 dark:text-white'
-                              : 'font-semibold text-slate-900 dark:text-slate-100'
+                              ? 'font-extrabold text-slate-900 dark:text-white'
+                              : 'font-bold text-slate-900 dark:text-slate-100'
                           }`}
                         >
                           {displayTitle}
@@ -611,7 +607,7 @@ export function ConversationList({
                           <span className="w-2 h-2 rounded-full bg-[#FFFC00] ring-1 ring-slate-900/20" />
                         )}
                         {!showYellowSnapDot && showBlueChatDot && (
-                          <span className="w-2 h-2 rounded-full bg-[#00A6FF]" />
+                          <span className="w-2 h-2 rounded-full bg-[#0E8CFF]" />
                         )}
                         {chat.muted && <BellOff className="w-3 h-3 text-slate-400" />}
                         {chat.pinned && <Pin className="w-3 h-3 text-slate-400" />}
@@ -631,7 +627,7 @@ export function ConversationList({
                           void onDeleteChat(chat.conversationId);
                         }}
                         onBlur={() => setConfirmDeleteId(null)}
-                        className="h-8 px-2 rounded-lg bg-rose-600 text-white text-[10px] font-bold cursor-pointer"
+                        className="h-8 px-2 rounded-xl bg-rose-600 text-white text-[10px] font-bold cursor-pointer"
                       >
                         Delete
                       </button>
@@ -641,7 +637,7 @@ export function ConversationList({
                         onClick={() => setConfirmDeleteId(chat.conversationId)}
                         title={`Delete ${displayTitle}`}
                         aria-label={`Delete ${displayTitle}`}
-                        className="w-8 h-8 rounded-xl text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center transition-all cursor-pointer"
+                        className="w-8 h-8 rounded-2xl text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center transition-all cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -653,7 +649,7 @@ export function ConversationList({
                     onClick={() => onOpenCameraForChat(chat.conversationId)}
                     title={`Snap ${displayTitle}`}
                     aria-label={`Snap ${displayTitle}`}
-                    className="w-9 h-9 rounded-xl text-slate-400 hover:text-slate-950 hover:bg-[#FFFC00] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                    className="w-9 h-9 rounded-full bg-[#FFFC00] text-black hover:bg-[#F2EF00] flex items-center justify-center snap-press cursor-pointer shrink-0"
                   >
                     <Camera className="w-4 h-4" />
                   </button>

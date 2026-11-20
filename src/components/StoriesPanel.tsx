@@ -70,10 +70,10 @@ export function StoriesPanel({
   }, [stories, currentUser.uid, profilesByUid]);
 
   return (
-    <section className="flex flex-col h-full w-full md:w-[380px] lg:w-[420px] shrink-0 bg-white dark:bg-[#121824] border-r border-slate-200 dark:border-slate-800/80">
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-2 shrink-0 border-b border-slate-100 dark:border-slate-800/80">
+    <section className="flex flex-col h-full w-full md:w-[380px] lg:w-[420px] shrink-0 bg-white dark:bg-[#0F0F0F] border-r border-slate-100 dark:border-white/10">
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-2 shrink-0 border-b border-slate-100 dark:border-white/10/80">
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="font-display text-[28px] leading-none font-extrabold tracking-[-0.05em] text-slate-900 dark:text-white">
             Stories
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -84,7 +84,7 @@ export function StoriesPanel({
           <button
             type="button"
             onClick={onOpenCameraForStory}
-            className="h-9 px-3.5 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            className="h-9 px-3.5 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
           >
             <Camera className="w-3.5 h-3.5" />
             <span>+ My Story</span>
@@ -94,7 +94,7 @@ export function StoriesPanel({
               type="button"
               onClick={onOpenCameraForVideo}
               title="Record Video Story"
-              className="w-9 h-9 rounded-xl bg-[#8B5CF6] hover:bg-[#7C3AED] text-white flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-2xl bg-[#8B5CF6] hover:bg-[#7C3AED] text-white flex items-center justify-center cursor-pointer"
             >
               <Video className="w-4 h-4" />
             </button>
@@ -104,7 +104,7 @@ export function StoriesPanel({
 
       <div className="flex-1 overflow-y-auto chat-scroll px-3.5 py-4 space-y-5">
         {/* 1. Top: My Story Row */}
-        <div className="p-3 rounded-2xl bg-[#F4F6F9] dark:bg-[#0B0F17] border border-slate-200/70 dark:border-slate-800">
+        <div className="p-3 rounded-2xl bg-[#F2F2F2] dark:bg-[#0A0A0A] border border-slate-200/70 dark:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -116,8 +116,8 @@ export function StoriesPanel({
               className="flex items-center gap-3 min-w-0 text-left cursor-pointer"
             >
               <div
-                className={`relative p-0.5 rounded-full ${
-                  myStories.length > 0 ? 'ring-2 ring-[#8B5CF6]' : 'ring-1 ring-slate-300 dark:ring-slate-700'
+                className={`relative p-[2.5px] rounded-full ${
+                  myStories.length > 0 ? 'snap-story-ring' : 'snap-story-ring-seen'
                 }`}
               >
                 <Avatar
@@ -127,7 +127,7 @@ export function StoriesPanel({
                   size="md"
                 />
                 {myStories.length === 0 && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center ring-2 ring-white dark:ring-[#0B0F17]">
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FFFC00] text-slate-950 flex items-center justify-center ring-2 ring-white dark:ring-[#0A0A0A]">
                     <Plus className="w-2.5 h-2.5" />
                   </span>
                 )}
@@ -147,7 +147,7 @@ export function StoriesPanel({
               type="button"
               onClick={onOpenCameraForStory}
               aria-label="Add to My Story"
-              className="h-8 px-3 rounded-xl bg-[#FFFC00] hover:bg-[#F5E600] text-slate-950 text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+              className="h-8 px-3 rounded-full bg-[#FFFC00] hover:bg-[#F5E600] text-black text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add</span>
@@ -155,7 +155,7 @@ export function StoriesPanel({
           </div>
 
           {myStories.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-slate-800 space-y-2">
+            <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-white/10 space-y-2">
               {myStories.map((story) => {
                 const viewerNames = story.viewerIds
                   .map((uid) => profilesByUid[uid]?.displayName.split(' ')[0])
@@ -169,7 +169,7 @@ export function StoriesPanel({
                       onClick={() => onViewAuthorStories(currentUser.uid)}
                       className="flex items-center gap-2 min-w-0 text-left cursor-pointer"
                     >
-                      <div className="w-8 h-10 rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-800 shrink-0 flex items-center justify-center">
+                      <div className="w-8 h-10 rounded-xl overflow-hidden bg-[#EDEDED] dark:bg-white/10 shrink-0 flex items-center justify-center">
                         {isVideo ? (
                           <Video className="w-4 h-4 text-[#8B5CF6]" />
                         ) : (
@@ -195,7 +195,7 @@ export function StoriesPanel({
                       type="button"
                       onClick={() => void onDeleteStory(story.id)}
                       aria-label="Delete story"
-                      className="w-8 h-8 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 flex items-center justify-center cursor-pointer shrink-0"
+                      className="w-8 h-8 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 flex items-center justify-center cursor-pointer shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -208,7 +208,7 @@ export function StoriesPanel({
 
         {/* 2. Friends Stories Horizontal Row */}
         <div>
-          <p className="px-1 pb-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <p className="px-1 pb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
             Friends Stories
           </p>
           {friendGroups.length === 0 ? (
@@ -225,10 +225,10 @@ export function StoriesPanel({
                   className="flex flex-col items-center gap-1.5 w-16 shrink-0 group cursor-pointer"
                 >
                   <div
-                    className={`p-0.5 rounded-full ${
+                    className={`p-[2.5px] rounded-full ${
                       group.hasUnviewed
-                        ? 'ring-2 ring-[#8B5CF6]'
-                        : 'ring-2 ring-slate-300 dark:ring-slate-700'
+                        ? 'snap-story-ring'
+                        : 'snap-story-ring-seen'
                     }`}
                   >
                     <Avatar
@@ -249,11 +249,11 @@ export function StoriesPanel({
 
         {/* 3. Discover / Public Stories Vertical Feed */}
         <div>
-          <p className="px-1 pb-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <p className="px-1 pb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
             Discover &amp; Public Stories
           </p>
           {discoverStories.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-5 py-9 text-center">
+            <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 px-5 py-9 text-center">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 No Discover stories right now
               </p>
@@ -271,7 +271,7 @@ export function StoriesPanel({
                     key={story.id}
                     type="button"
                     onClick={() => onViewAuthorStories(story.authorId)}
-                    className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-slate-800 text-left cursor-pointer"
+                    className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-slate-950 border border-slate-100 dark:border-white/10 text-left cursor-pointer"
                   >
                     {isVideo ? (
                       <video

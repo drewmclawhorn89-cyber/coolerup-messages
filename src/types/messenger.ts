@@ -17,12 +17,12 @@ export const CHAT_THEMES: Record<ChatThemeId, ChatThemeConfig> = {
   azure: {
     id: 'azure',
     label: 'Snap Blue',
-    swatchHex: '#00A6FF',
-    bubbleBg: 'bg-[#0095FF] dark:bg-[#0EA5E9]',
+    swatchHex: '#0E8CFF',
+    bubbleBg: 'bg-[#0E8CFF] dark:bg-[#0E8CFF]',
     bubbleText: 'text-white',
-    accentText: 'text-[#0088E8] dark:text-[#38BDF8]',
-    accentBgSoft: 'bg-[#00A6FF]/12 dark:bg-[#0EA5E9]/20',
-    ringClass: 'ring-[#00A6FF]',
+    accentText: 'text-[#0E8CFF] dark:text-[#4DA9FF]',
+    accentBgSoft: 'bg-[#0E8CFF]/12 dark:bg-[#0E8CFF]/20',
+    ringClass: 'ring-[#0E8CFF]',
   },
   emerald: {
     id: 'emerald',

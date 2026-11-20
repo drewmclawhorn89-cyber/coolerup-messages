@@ -63,7 +63,7 @@ export function BitmojiSvg({ config }: { config: BitmojiAvatarConfig }) {
       )}
       {config.hairStyle === 'cap' && (
         <g>
-          <path d="M18 27 C18 15, 46 15, 46 27 Z" fill="#00A6FF" />
+          <path d="M18 27 C18 15, 46 15, 46 27 Z" fill="#0E8CFF" />
           <rect x="18" y="24" width="32" height="4" rx="2" fill="#0284C7" />
         </g>
       )}
@@ -117,11 +117,11 @@ export function Avatar({
   return (
     <div className={`relative shrink-0 inline-flex items-center justify-center select-none ${SIZE_MAP[size]}`}>
       {isSaved ? (
-        <div className="w-full h-full rounded-full bg-[#00A6FF] text-white flex items-center justify-center">
+        <div className="w-full h-full rounded-full bg-[#0E8CFF] text-white flex items-center justify-center">
           <Bookmark className={size === 'xs' ? 'w-3 h-3' : size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} />
         </div>
       ) : isGroup && !photoURL ? (
-        <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center border border-slate-300/60 dark:border-slate-700">
+        <div className="w-full h-full rounded-full bg-[#EDEDED] dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center border border-slate-300/60 dark:border-white/10">
           <Users className={size === 'xs' ? 'w-3 h-3' : size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} />
         </div>
       ) : bitmoji ? (
@@ -132,10 +132,10 @@ export function Avatar({
           alt={name}
           referrerPolicy="no-referrer"
           onError={() => setImgFailed(true)}
-          className="w-full h-full rounded-full object-cover bg-slate-200 dark:bg-slate-800"
+          className="w-full h-full rounded-full object-cover bg-[#EDEDED] dark:bg-white/10"
         />
       ) : (
-        <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold flex items-center justify-center">
+        <div className="w-full h-full rounded-full bg-[#EDEDED] dark:bg-white/10 text-slate-700 dark:text-slate-200 font-semibold flex items-center justify-center">
           {getInitials(name)}
         </div>
       )}
@@ -143,7 +143,7 @@ export function Avatar({
       {isOnline && !isGroup && !isSaved && (
         <span
           aria-label="Active now"
-          className={`absolute bottom-0 right-0 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#121824] ${DOT_MAP[size]}`}
+          className={`absolute bottom-0 right-0 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#141414] ${DOT_MAP[size]}`}
         />
       )}
     </div>
